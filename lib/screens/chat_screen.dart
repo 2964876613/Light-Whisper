@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -6,7 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../models/capture_source.dart';
 import '../providers/user_tier_provider.dart';
-import '../services/ai_vision_service.dart';
+import '../services/doubao_api_service.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({
@@ -24,7 +25,7 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final FlutterTts _tts = FlutterTts();
-  final AiVisionService _aiVisionService = AiVisionService();
+  final DoubaoApiService _aiVisionService = DoubaoApiService();
 
   bool _isLoading = true;
   bool _ttsFinished = false;
@@ -60,9 +61,10 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _simulateAnalyzeAndSpeak() async {
-    final result = await _aiVisionService.analyzeImage(
-      imagePath: widget.imagePath,
-    );
+    final path = widget.imagePath;
+    final result = path == null || path.isEmpty
+        ? DoubaoApiService.fallbackMessage
+        : await _aiVisionService.analyzeImage(File(path));
 
     if (!mounted) return;
     setState(() {
@@ -108,7 +110,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   child: const Text(
                     '光语解析',
                     style: TextStyle(
-                      color: Colors.yellow,
+                      color: Colors.white,
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                     ),
@@ -123,15 +125,11 @@ class _ChatScreenState extends State<ChatScreen> {
                       label: _isLoading ? '正在分析图片并播报' : 'AI解析内容：$_aiResult',
                       child: Container(
                         width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.06),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.yellow.withValues(alpha: 0.4)),
-                        ),
+                        color: Colors.black,
                         padding: const EdgeInsets.all(16),
                         child: _isLoading
                             ? const Center(
-                                child: CircularProgressIndicator(color: Colors.yellow),
+                                child: CircularProgressIndicator(color: Colors.white),
                               )
                             : Text(
                                 _aiResult,
@@ -164,14 +162,11 @@ class _ChatScreenState extends State<ChatScreen> {
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(14),
-          ),
+          color: Colors.black,
           child: const Text(
             '免费模式：已完成单次播报',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white70, fontSize: 16),
+            style: TextStyle(color: Colors.white, fontSize: 16),
           ),
         ),
       );
@@ -191,11 +186,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 hintText: canTalk ? '可继续提问这张图' : '播报中，请稍候',
                 hintStyle: const TextStyle(color: Colors.white54),
                 filled: true,
-                fillColor: Colors.white.withValues(alpha: 0.08),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
+                fillColor: Colors.black,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
               ),
             ),
           ),
@@ -224,7 +218,7 @@ class _ChatScreenState extends State<ChatScreen> {
               height: 54,
               width: 54,
               decoration: BoxDecoration(
-                color: canTalk ? Colors.yellow : Colors.white24,
+                color: canTalk ? Colors.white : Colors.white24,
                 shape: BoxShape.circle,
               ),
               child: Icon(
