@@ -111,12 +111,18 @@ JSON 格式如下：
 
   String get _apiKey => dotenv.env['ARK_API_KEY']?.trim() ?? '';
 
-  Future<String> analyzeImage(File imageFile) async {
-    final structured = await analyzeImageStructured(imageFile);
+  Future<String> analyzeImage(File imageFile, {String? singleQuestion}) async {
+    final structured = await analyzeImageStructured(
+      imageFile,
+      singleQuestion: singleQuestion,
+    );
     return structured?.ttsText ?? fallbackMessage;
   }
 
-  Future<StructuredVisionResult?> analyzeImageStructured(File imageFile) async {
+  Future<StructuredVisionResult?> analyzeImageStructured(
+    File imageFile, {
+    String? singleQuestion,
+  }) async {
     if (!await imageFile.exists()) {
       return null;
     }
@@ -143,7 +149,10 @@ JSON 格式如下：
             'role': 'user',
             'content': [
               {'type': 'input_image', 'image_url': imageDataUrl},
-              {'type': 'input_text', 'text': _structuredJsonUserPrompt},
+              {
+                'type': 'input_text',
+                'text': _singleTurnPrompt(singleQuestion),
+              },
             ],
           }
         ],
@@ -428,6 +437,14 @@ JSON 格式如下：
           content.length > maxChars ? content.substring(0, maxChars) : content;
       return {'role': role, 'content': clipped};
     }).toList();
+  }
+
+  String _singleTurnPrompt(String? question) {
+    final q = question?.trim();
+    if (q == null || q.isEmpty) {
+      return _structuredJsonUserPrompt;
+    }
+    return '$_structuredJsonUserPrompt\n\n用户本轮问题：$q\n只回答当前这张图，不要引用历史对话。';
   }
 
   Future<File> _prepareImageForUpload(File imageFile) async {

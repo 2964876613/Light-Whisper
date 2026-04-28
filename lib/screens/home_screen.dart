@@ -9,6 +9,7 @@ import 'package:vibration/vibration.dart';
 
 import '../models/capture_source.dart';
 import 'chat_screen.dart';
+import 'live_vision_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -214,6 +215,16 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _openLiveVisionMode() async {
+    if (_isCapturing || !mounted) return;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const LiveVisionScreen(),
+      ),
+    );
+  }
+
   Widget _buildCameraFallback() {
     final message = _cameraUnavailable
         ? '当前设备无可用相机\n可双击继续无图解析'
@@ -276,6 +287,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onDoubleTap: _handleDoubleTapCapture,
+                onLongPress: _openLiveVisionMode,
               ),
             ),
             Align(
