@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../models/capture_source.dart';
 import '../providers/user_tier_provider.dart';
+import '../services/ai_vision_service.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({
@@ -23,6 +24,7 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final FlutterTts _tts = FlutterTts();
+  final AiVisionService _aiVisionService = AiVisionService();
 
   bool _isLoading = true;
   bool _ttsFinished = false;
@@ -58,13 +60,9 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _simulateAnalyzeAndSpeak() async {
-    await Future<void>.delayed(const Duration(milliseconds: 900));
-
-    final sourceText = widget.captureSource == CaptureSource.camera
-        ? '这是户外拍摄画面。'
-        : '这是数字模式下的截图内容。';
-
-    final result = '$sourceText 前方约三米有行人经过，右侧是可通行区域，建议保持直行并略向右调整。';
+    final result = await _aiVisionService.analyzeImage(
+      imagePath: widget.imagePath,
+    );
 
     if (!mounted) return;
     setState(() {

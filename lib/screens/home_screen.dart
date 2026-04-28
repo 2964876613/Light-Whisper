@@ -22,6 +22,8 @@ class _HomeScreenState extends State<HomeScreen> {
   StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
 
   bool _isCapturing = false;
+  bool _cameraUnavailable = false;
+  String _cameraStatusText = '正在初始化相机';
   DateTime _lastShakeTime = DateTime.fromMillisecondsSinceEpoch(0);
   static const double _shakeThreshold = 20;
   static const Duration _shakeCooldown = Duration(milliseconds: 1500);
@@ -36,7 +38,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _initializeCamera() async {
     try {
       final cameras = await availableCameras();
-      if (cameras.isEmpty) return;
+      if (cameras.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _cameraUnavailable = true;
+          _cameraStatusText = '未检测到可用相机，双击可继续无图解析';
+        });
+        return;
+      }
 
       final backCamera = cameras.firstWhere(
         (camera) => camera.lensDirection == CameraLensDirection.back,
@@ -54,15 +63,23 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _cameraController = controller;
         _cameraInitFuture = initFuture;
+        _cameraUnavailable = false;
+        _cameraStatusText = '正在初始化相机';
       });
 
       await initFuture;
       if (!mounted) return;
-      setState(() {});
+      setState(() {
+        _cameraStatusText = '双击拍一拍 | 摇动进入数字模式';
+      });
     } catch (_) {
       if (!mounted) return;
+      setState(() {
+        _cameraUnavailable = true;
+        _cameraStatusText = '相机初始化失败，双击可继续无图解析';
+      });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('相机初始化失败，请检查权限后重试')),
+        const SnackBar(content: Text('相机不可用，已切换到无图模式')),
       );
     }
   }
@@ -133,6 +150,30 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildCameraFallback() {
+    final message = _cameraUnavailable
+        ? '当前设备无可用相机\n可双击继续无图解析'
+        : '正在连接相机...';
+
+    return Semantics(
+      label: message,
+      child: ColoredBox(
+        color: Colors.black,
+        child: Center(
+          child: Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 16,
+              height: 1.5,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _accelerometerSubscription?.cancel();
@@ -156,11 +197,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       _cameraController!.value.isInitialized) {
                     return CameraPreview(_cameraController!);
                   }
-                  return const ColoredBox(color: Colors.black);
+                  return _buildCameraFallback();
                 },
               )
             else
-              const ColoredBox(color: Colors.black),
+              _buildCameraFallback(),
             BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
               child: Container(color: Colors.black.withValues(alpha: 0.12)),
@@ -180,9 +221,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Semantics(
                   liveRegion: true,
                   label: '提示：双击拍一拍，摇动进入数字模式',
-                  child: const Text(
-                    '双击拍一拍 | 摇动进入数字模式',
-                    style: TextStyle(
+                  child: Text(
+                    _cameraStatusText,
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
