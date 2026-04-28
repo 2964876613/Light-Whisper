@@ -25,8 +25,14 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _cameraUnavailable = false;
   String _cameraStatusText = '正在初始化相机';
   DateTime _lastShakeTime = DateTime.fromMillisecondsSinceEpoch(0);
-  static const double _shakeThreshold = 20;
+  static const double _shakeThreshold = 14;
+  static const int _shakeHitRequired = 3;
   static const Duration _shakeCooldown = Duration(milliseconds: 1500);
+  static const double _lowPassAlpha = 0.85;
+  int _shakeHitCount = 0;
+  double _gravityX = 0;
+  double _gravityY = 0;
+  double _gravityZ = 0;
 
   @override
   void initState() {
@@ -87,10 +93,32 @@ class _HomeScreenState extends State<HomeScreen> {
   void _startShakeListener() {
     _accelerometerSubscription = accelerometerEventStream().listen((event) {
       final now = DateTime.now();
-      final delta = (event.x.abs() + event.y.abs() + event.z.abs());
       final inCooldown = now.difference(_lastShakeTime) < _shakeCooldown;
 
-      if (delta > _shakeThreshold && !inCooldown) {
+      _gravityX = _lowPassAlpha * _gravityX + (1 - _lowPassAlpha) * event.x;
+      _gravityY = _lowPassAlpha * _gravityY + (1 - _lowPassAlpha) * event.y;
+      _gravityZ = _lowPassAlpha * _gravityZ + (1 - _lowPassAlpha) * event.z;
+
+      final linearX = event.x - _gravityX;
+      final linearY = event.y - _gravityY;
+      final linearZ = event.z - _gravityZ;
+      final delta = linearX.abs() + linearY.abs() + linearZ.abs();
+
+      if (inCooldown) {
+        if (_shakeHitCount != 0) {
+          _shakeHitCount = 0;
+        }
+        return;
+      }
+
+      if (delta > _shakeThreshold) {
+        _shakeHitCount += 1;
+      } else {
+        _shakeHitCount = 0;
+      }
+
+      if (_shakeHitCount >= _shakeHitRequired) {
+        _shakeHitCount = 0;
         _lastShakeTime = now;
         _handleShakeCapture();
       }

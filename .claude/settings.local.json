@@ -6,7 +6,9 @@
       "Bash(flutter test *)",
       "Bash(export HTTP_PROXY=\"http://127.0.0.1:6244\" HTTPS_PROXY=\"http://127.0.0.1:6244\")",
       "Bash(HTTP_PROXY=\"http://127.0.0.1:6244\" HTTPS_PROXY=\"http://127.0.0.1:6244\" flutter test *)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }

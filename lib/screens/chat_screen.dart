@@ -38,6 +38,9 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isAsrRunning = false;
   String _aiResult = '';
   String _liveSpeechText = '';
+  String _safetyHint = '';
+  String _contextHint = '';
+  String _safetyLevel = '';
 
   final List<Map<String, String>> _chatHistory = [];
 
@@ -71,13 +74,28 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _simulateAnalyzeAndSpeak() async {
     final path = widget.imagePath;
-    final result = path == null || path.isEmpty
-        ? DoubaoApiService.fallbackMessage
-        : await _aiVisionService.analyzeImage(File(path));
+
+    String result;
+    String hint = '';
+    String contextHint = '';
+    String safetyLevel = '';
+
+    if (path == null || path.isEmpty) {
+      result = DoubaoApiService.fallbackMessage;
+    } else {
+      final structured = await _aiVisionService.analyzeImageStructured(File(path));
+      result = structured?.ttsText ?? DoubaoApiService.fallbackMessage;
+      hint = _buildSafetyHint(structured?.safetyLevel, structured?.safetyConfidence);
+      contextHint = _buildContextHint(structured?.raw);
+      safetyLevel = structured?.safetyLevel ?? '';
+    }
 
     if (!mounted) return;
     setState(() {
       _aiResult = result;
+      _safetyHint = hint;
+      _contextHint = contextHint;
+      _safetyLevel = safetyLevel;
       _isLoading = false;
       _chatHistory
         ..clear()
@@ -252,7 +270,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: Semantics(
                           liveRegion: true,
-                          label: _isLoading ? '正在处理中' : 'AI解析内容：$_aiResult',
+                          label: _buildResultSemanticsLabel(),
                           child: Container(
                             width: double.infinity,
                             color: Colors.black,
@@ -261,13 +279,42 @@ class _ChatScreenState extends State<ChatScreen> {
                                 ? const Center(
                                     child: CircularProgressIndicator(color: Colors.white),
                                   )
-                                : Text(
-                                    _aiResult,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 21,
-                                      height: 1.45,
-                                    ),
+                                : Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      if (_safetyHint.isNotEmpty)
+                                        Padding(
+                                          padding: const EdgeInsets.only(bottom: 8),
+                                          child: Text(
+                                            _safetyHint,
+                                            style: TextStyle(
+                                              color: _safetyHintColor(_safetyLevel),
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      if (_contextHint.isNotEmpty)
+                                        Padding(
+                                          padding: const EdgeInsets.only(bottom: 10),
+                                          child: Text(
+                                            _contextHint,
+                                            style: const TextStyle(
+                                              color: Colors.lightBlueAccent,
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                      Text(
+                                        _aiResult,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 21,
+                                          height: 1.45,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                           ),
                         ),
@@ -300,6 +347,158 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       ),
     );
+  }
+
+  String _buildSafetyHint(String? level, double? confidence) {
+    if (level == null || confidence == null) {
+      return '';
+    }
+
+    final percent = (confidence * 100).clamp(0, 100).toStringAsFixed(0);
+    switch (level) {
+      case 'critical':
+        return '风险等级：严重（$percent%）';
+      case 'high':
+        return '风险等级：高（$percent%）';
+      case 'medium':
+        return '风险等级：中（$percent%）';
+      case 'low':
+        return '风险等级：低（$percent%）';
+      default:
+        return '';
+    }
+  }
+
+  String _buildResultSemanticsLabel() {
+    if (_isLoading) {
+      return '正在处理中';
+    }
+
+    final parts = <String>[];
+    if (_safetyHint.isNotEmpty) {
+      parts.add(_safetyHint);
+    }
+    if (_contextHint.isNotEmpty) {
+      parts.add(_contextHint);
+    }
+    parts.add('AI解析内容：$_aiResult');
+    return parts.join('。');
+  }
+
+  Color _safetyHintColor(String level) {
+    switch (level) {
+      case 'critical':
+        return Colors.redAccent;
+      case 'high':
+        return Colors.deepOrangeAccent;
+      case 'medium':
+        return Colors.amber;
+      case 'low':
+        return Colors.lightGreenAccent;
+      default:
+        return Colors.amber;
+    }
+  }
+
+  String _buildContextHint(Map<String, dynamic>? raw) {
+    if (raw == null) {
+      return '';
+    }
+
+    final traffic = raw['traffic_light'];
+    final hazards = raw['hazards'];
+
+    final trafficHint = _buildTrafficHint(traffic);
+    final hazardHint = _buildFirstHazardHint(hazards);
+
+    if (trafficHint.isNotEmpty && hazardHint.isNotEmpty) {
+      return '$trafficHint，$hazardHint';
+    }
+    if (trafficHint.isNotEmpty) {
+      return trafficHint;
+    }
+    return hazardHint;
+  }
+
+  String _buildTrafficHint(dynamic traffic) {
+    if (traffic is! Map) {
+      return '';
+    }
+
+    final state = traffic['state'];
+    if (state is! String) {
+      return '';
+    }
+
+    switch (state) {
+      case 'red':
+        return '红绿灯：红灯';
+      case 'yellow':
+        return '红绿灯：黄灯';
+      case 'green':
+        return '红绿灯：绿灯';
+      default:
+        return '';
+    }
+  }
+
+  String _buildFirstHazardHint(dynamic hazards) {
+    if (hazards is! List || hazards.isEmpty) {
+      return '';
+    }
+
+    final first = hazards.first;
+    if (first is! Map) {
+      return '';
+    }
+
+    final direction = first['direction'];
+    final type = first['type'];
+    if (direction is! String || type is! String) {
+      return '';
+    }
+
+    final dir = _mapDirection(direction);
+    final hazard = _mapHazardType(type);
+    if (dir.isEmpty || hazard.isEmpty) {
+      return '';
+    }
+
+    return '$dir有$hazard';
+  }
+
+  String _mapDirection(String value) {
+    switch (value) {
+      case 'front':
+        return '正前方';
+      case 'front_left':
+        return '左前方';
+      case 'front_right':
+        return '右前方';
+      case 'left':
+        return '左侧';
+      case 'right':
+        return '右侧';
+      case 'rear':
+        return '后方';
+      default:
+        return '';
+    }
+  }
+
+  String _mapHazardType(String value) {
+    switch (value) {
+      case 'vehicle':
+        return '车辆';
+      case 'stairs':
+        return '台阶';
+      case 'pit':
+        return '坑洼';
+      case 'obstacle':
+        return '障碍物';
+      default:
+        return '';
+    }
   }
 
   Widget _buildInputArea({required bool isProUser, required bool canTalk}) {

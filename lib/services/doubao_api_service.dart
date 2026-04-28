@@ -2,7 +2,27 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+
+class StructuredVisionResult {
+  const StructuredVisionResult({
+    required this.sceneType,
+    required this.safetyLevel,
+    required this.safetyConfidence,
+    required this.fallbackNeeded,
+    required this.ttsText,
+    required this.raw,
+  });
+
+  final String sceneType;
+  final String safetyLevel;
+  final double safetyConfidence;
+  final bool fallbackNeeded;
+  final String ttsText;
+  final Map<String, dynamic> raw;
+}
 
 class DoubaoApiService {
   DoubaoApiService({Dio? dio})
@@ -45,24 +65,70 @@ class DoubaoApiService {
 【用户对话处理（针对 Pro 用户追问）】
 当用户就刚才的图片进行语音追问时，你的回答依然需要遵循“极简且客观”的原则，直接回答用户关于方位、颜色、文字的具体问题，不要延展任何无关信息。''';
 
-  static const String _defaultVisionPrompt = _safetySystemPrompt;
+  static const String _structuredJsonUserPrompt = '''请严格按以下要求返回：
+1) 只返回一个 JSON 对象，不要返回 markdown、代码块、解释文本或任何前后缀。
+2) 所有顶层字段必须存在，不可省略。
+3) 若任何关键判断确信度低于0.9，必须 fallback_needed=true，且 tts_text 必须是“画面模糊，无法识别，请结合导盲杖判断。”。
+4) distance_m 单位为米，confidence 范围为 0 到 1。
+5) 枚举值必须严格来自给定集合。
+
+JSON 格式如下：
+{
+  "scene_type": "outdoor|digital|unknown",
+  "summary": "string<=20字",
+  "safety": {
+    "level": "low|medium|high|critical",
+    "confidence": 0.0,
+    "fallback_needed": true
+  },
+  "hazards": [
+    {
+      "type": "vehicle|stairs|pit|obstacle|unknown",
+      "direction": "front|front_left|front_right|left|right|rear|unknown",
+      "distance_m": 0.0,
+      "confidence": 0.0
+    }
+  ],
+  "traffic_light": {
+    "state": "red|yellow|green|none|unknown",
+    "confidence": 0.0
+  },
+  "ocr_focus": [
+    {
+      "text": "string",
+      "role": "button|title|amount|label|unknown",
+      "confidence": 0.0
+    }
+  ],
+  "tts_text": "最终播报短句（<=15字）"
+}
+''';
+
   static const String fallbackMessage = '网络环境不佳，AI暂时无法连线，请依靠导盲杖确保安全。';
+  static const String _safetyFallbackTts = '画面模糊，无法识别，请结合导盲杖判断。';
 
   String get _modelId => dotenv.env['VOLC_MODEL_ID']?.trim() ?? '';
 
   String get _apiKey => dotenv.env['ARK_API_KEY']?.trim() ?? '';
 
   Future<String> analyzeImage(File imageFile) async {
+    final structured = await analyzeImageStructured(imageFile);
+    return structured?.ttsText ?? fallbackMessage;
+  }
+
+  Future<StructuredVisionResult?> analyzeImageStructured(File imageFile) async {
     if (!await imageFile.exists()) {
-      return fallbackMessage;
+      return null;
     }
 
     if (_apiKey.isEmpty || _modelId.isEmpty) {
-      return fallbackMessage;
+      return null;
     }
 
+    File? preparedImage;
     try {
-      final imageDataUrl = await _buildBase64ImageDataUrl(imageFile);
+      preparedImage = await _prepareImageForUpload(imageFile);
+      final imageDataUrl = await _buildBase64ImageDataUrl(preparedImage);
 
       final payload = {
         'model': _modelId,
@@ -77,7 +143,7 @@ class DoubaoApiService {
             'role': 'user',
             'content': [
               {'type': 'input_image', 'image_url': imageDataUrl},
-              {'type': 'input_text', 'text': _defaultVisionPrompt},
+              {'type': 'input_text', 'text': _structuredJsonUserPrompt},
             ],
           }
         ],
@@ -95,19 +161,28 @@ class DoubaoApiService {
 
       final parsed = _extractResponseText(response.data);
       if (parsed.isEmpty) {
-        return fallbackMessage;
+        return null;
       }
-      return parsed;
+
+      return _parseStructuredResult(parsed);
     } catch (e) {
-      print('===== 网络请求引发了异常 =====');
-      print(e.toString());
+      debugPrint('===== 网络请求引发了异常 =====');
+      debugPrint(e.toString());
 
       if (e is DioException && e.response != null) {
-        print('接口详细报错: ${e.response?.data}');
+        debugPrint('接口详细报错: ${e.response?.data}');
       }
 
-      print('==============================');
-      return fallbackMessage;
+      debugPrint('==============================');
+      return null;
+    } finally {
+      if (preparedImage != null &&
+          preparedImage.path != imageFile.path &&
+          await preparedImage.exists()) {
+        try {
+          await preparedImage.delete();
+        } catch (_) {}
+      }
     }
   }
 
@@ -134,13 +209,17 @@ class DoubaoApiService {
         },
       ];
 
-      for (final message in history) {
+      for (final message in _truncateHistory(history)) {
         final role = message['role']?.trim();
         final content = message['content']?.trim();
         if (role == null || content == null || role.isEmpty || content.isEmpty) {
           continue;
         }
         if (role != 'user' && role != 'assistant') {
+          continue;
+        }
+
+        if (role == 'user' && content == latest) {
           continue;
         }
 
@@ -180,13 +259,193 @@ class DoubaoApiService {
       }
       return parsed;
     } catch (e) {
-      print('===== 文本对话请求异常 =====');
-      print(e.toString());
+      debugPrint('===== 文本对话请求异常 =====');
+      debugPrint(e.toString());
       if (e is DioException && e.response != null) {
-        print('接口详细报错: ${e.response?.data}');
+        debugPrint('接口详细报错: ${e.response?.data}');
       }
-      print('==========================');
+      debugPrint('==========================');
       return fallbackMessage;
+    }
+  }
+
+  StructuredVisionResult? _parseStructuredResult(String raw) {
+    final map = _decodeJsonObject(raw);
+    if (map == null) {
+      return null;
+    }
+
+    const sceneTypes = {'outdoor', 'digital', 'unknown'};
+    const safetyLevels = {'low', 'medium', 'high', 'critical'};
+    const hazardTypes = {'vehicle', 'stairs', 'pit', 'obstacle', 'unknown'};
+    const hazardDirections = {
+      'front',
+      'front_left',
+      'front_right',
+      'left',
+      'right',
+      'rear',
+      'unknown',
+    };
+    const trafficLightStates = {'red', 'yellow', 'green', 'none', 'unknown'};
+    const ocrRoles = {'button', 'title', 'amount', 'label', 'unknown'};
+
+    final sceneType = map['scene_type'];
+    final summary = map['summary'];
+    final safety = map['safety'];
+    final hazards = map['hazards'];
+    final trafficLight = map['traffic_light'];
+    final ocrFocus = map['ocr_focus'];
+    final ttsText = map['tts_text'];
+
+    if (sceneType is! String || !sceneTypes.contains(sceneType)) return null;
+    if (summary is! String) return null;
+    if (safety is! Map<String, dynamic>) return null;
+    if (hazards is! List) return null;
+    if (trafficLight is! Map<String, dynamic>) return null;
+    if (ocrFocus is! List) return null;
+    if (ttsText is! String || ttsText.trim().isEmpty) return null;
+
+    final safetyLevel = safety['level'];
+    final safetyConfidence = _toDouble(safety['confidence']);
+    final fallbackNeeded = safety['fallback_needed'];
+    if (safetyLevel is! String || !safetyLevels.contains(safetyLevel)) return null;
+    if (safetyConfidence == null || safetyConfidence < 0 || safetyConfidence > 1) {
+      return null;
+    }
+    if (fallbackNeeded is! bool) return null;
+
+    for (final item in hazards) {
+      if (item is! Map<String, dynamic>) return null;
+      final type = item['type'];
+      final direction = item['direction'];
+      final distance = _toDouble(item['distance_m']);
+      final confidence = _toDouble(item['confidence']);
+      if (type is! String || !hazardTypes.contains(type)) return null;
+      if (direction is! String || !hazardDirections.contains(direction)) {
+        return null;
+      }
+      if (distance == null || distance < 0) return null;
+      if (confidence == null || confidence < 0 || confidence > 1) return null;
+    }
+
+    final trafficState = trafficLight['state'];
+    final trafficConfidence = _toDouble(trafficLight['confidence']);
+    if (trafficState is! String || !trafficLightStates.contains(trafficState)) {
+      return null;
+    }
+    if (trafficConfidence == null || trafficConfidence < 0 || trafficConfidence > 1) {
+      return null;
+    }
+
+    for (final item in ocrFocus) {
+      if (item is! Map<String, dynamic>) return null;
+      final text = item['text'];
+      final role = item['role'];
+      final confidence = _toDouble(item['confidence']);
+      if (text is! String) return null;
+      if (role is! String || !ocrRoles.contains(role)) return null;
+      if (confidence == null || confidence < 0 || confidence > 1) return null;
+    }
+
+    final hasLowHazardConfidence = hazards.isNotEmpty && hazards.any((item) {
+      if (item is! Map<String, dynamic>) return true;
+      final confidence = _toDouble(item['confidence']);
+      return confidence == null || confidence < 0.9;
+    });
+
+    final shouldFallback =
+        safetyConfidence < 0.9 || trafficConfidence < 0.9 || hasLowHazardConfidence;
+
+    if (shouldFallback && fallbackNeeded != true) {
+      return null;
+    }
+
+    final resolvedTts = fallbackNeeded == true
+        ? _safetyFallbackTts
+        : (ttsText.trim().length > 30 ? ttsText.trim().substring(0, 30) : ttsText.trim());
+
+    return StructuredVisionResult(
+      sceneType: sceneType,
+      safetyLevel: safetyLevel,
+      safetyConfidence: safetyConfidence,
+      fallbackNeeded: fallbackNeeded,
+      ttsText: resolvedTts,
+      raw: map,
+    );
+  }
+
+  Map<String, dynamic>? _decodeJsonObject(String raw) {
+    final direct = _tryDecode(raw);
+    if (direct != null) {
+      return direct;
+    }
+
+    final firstBrace = raw.indexOf('{');
+    final lastBrace = raw.lastIndexOf('}');
+    if (firstBrace < 0 || lastBrace <= firstBrace) {
+      return null;
+    }
+
+    final candidate = raw.substring(firstBrace, lastBrace + 1);
+    return _tryDecode(candidate);
+  }
+
+  Map<String, dynamic>? _tryDecode(String input) {
+    try {
+      final decoded = jsonDecode(input);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  double? _toDouble(dynamic value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+    return null;
+  }
+
+  List<Map<String, String>> _truncateHistory(List<Map<String, String>> history) {
+    const maxRounds = 6;
+    const maxChars = 120;
+
+    final filtered = history
+        .where((m) => (m['role'] == 'user' || m['role'] == 'assistant'))
+        .toList();
+
+    final start = filtered.length > maxRounds ? filtered.length - maxRounds : 0;
+    final window = filtered.sublist(start);
+
+    return window.map((message) {
+      final role = message['role'] ?? '';
+      final content = (message['content'] ?? '').trim();
+      final clipped =
+          content.length > maxChars ? content.substring(0, maxChars) : content;
+      return {'role': role, 'content': clipped};
+    }).toList();
+  }
+
+  Future<File> _prepareImageForUpload(File imageFile) async {
+    try {
+      final compressed = await FlutterImageCompress.compressAndGetFile(
+        imageFile.path,
+        '${imageFile.path}.compressed.jpg',
+        minWidth: 1280,
+        minHeight: 1280,
+        quality: 78,
+        format: CompressFormat.jpeg,
+      );
+      if (compressed == null) {
+        return imageFile;
+      }
+      return File(compressed.path);
+    } catch (_) {
+      return imageFile;
     }
   }
 
