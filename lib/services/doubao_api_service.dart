@@ -21,8 +21,8 @@ class DoubaoApiService {
 
   static const String _baseUrl = 'https://ark.cn-beijing.volces.com/api/v3';
   static const String _responsesPath = '/responses';
-  
-  static const String _defaultVisionPrompt = '''你是“光语 (LightWhisper)”的核心视觉引擎，专门为视障人士提供高可靠性的环境感知与数字内容解析。你的输出将直接通过 TTS (语音合成) 播报给用户，因此你的回答必须绝对安全、极度简练、客观准确。
+
+  static const String _safetySystemPrompt = '''你是“光语 (LightWhisper)”的核心视觉引擎，专门为视障人士提供高可靠性的环境感知与数字内容解析。你的输出将直接通过 TTS (语音合成) 播报给用户，因此你的回答必须绝对安全、极度简练、客观准确。
 
 【核心安全原则：最高指令】
 1. 严禁幻觉与猜测：如果你对画面内容的确信度低于90%，或者画面模糊、严重曝光、被遮挡，必须立即中断解析，严格回复：“画面模糊，无法识别，请结合导盲杖判断。”
@@ -44,6 +44,8 @@ class DoubaoApiService {
 
 【用户对话处理（针对 Pro 用户追问）】
 当用户就刚才的图片进行语音追问时，你的回答依然需要遵循“极简且客观”的原则，直接回答用户关于方位、颜色、文字的具体问题，不要延展任何无关信息。''';
+
+  static const String _defaultVisionPrompt = _safetySystemPrompt;
   static const String fallbackMessage = '网络环境不佳，AI暂时无法连线，请依靠导盲杖确保安全。';
 
   String get _modelId => dotenv.env['VOLC_MODEL_ID']?.trim() ?? '';
@@ -65,6 +67,12 @@ class DoubaoApiService {
       final payload = {
         'model': _modelId,
         'input': [
+          {
+            'role': 'system',
+            'content': [
+              {'type': 'input_text', 'text': _safetySystemPrompt},
+            ],
+          },
           {
             'role': 'user',
             'content': [
@@ -91,17 +99,94 @@ class DoubaoApiService {
       }
       return parsed;
     } catch (e) {
-      print("===== 网络请求引发了异常 =====");
+      print('===== 网络请求引发了异常 =====');
       print(e.toString());
-      
-      // 因为你用了 Dio，如果是接口报错（比如 Key 不对、格式错误），这段能打印出火山引擎官方的具体报错原因
+
       if (e is DioException && e.response != null) {
-        print("接口详细报错: ${e.response?.data}");
+        print('接口详细报错: ${e.response?.data}');
       }
-      
-      print("==============================");
+
+      print('==============================');
       return fallbackMessage;
     }
+  }
+
+  Future<String> chatWithText({
+    required List<Map<String, String>> history,
+    required String latestQuestion,
+  }) async {
+    if (_apiKey.isEmpty || _modelId.isEmpty) {
+      return fallbackMessage;
+    }
+
+    final latest = latestQuestion.trim();
+    if (latest.isEmpty) {
+      return fallbackMessage;
+    }
+
+    try {
+      final input = <Map<String, dynamic>>[
+        {
+          'role': 'system',
+          'content': [
+            {'type': 'input_text', 'text': _safetySystemPrompt},
+          ],
+        },
+      ];
+
+      for (final message in history) {
+        final role = message['role']?.trim();
+        final content = message['content']?.trim();
+        if (role == null || content == null || role.isEmpty || content.isEmpty) {
+          continue;
+        }
+        if (role != 'user' && role != 'assistant') {
+          continue;
+        }
+
+        input.add({
+          'role': role,
+          'content': [
+            {'type': 'input_text', 'text': content},
+          ],
+        });
+      }
+
+      input.add({
+        'role': 'user',
+        'content': [
+          {'type': 'input_text', 'text': latest},
+        ],
+      });
+
+      final payload = {
+        'model': _modelId,
+        'input': input,
+      };
+
+      final response = await _dio.post(
+        _responsesPath,
+        data: payload,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $_apiKey',
+          },
+        ),
+      );
+
+      final parsed = _extractResponseText(response.data);
+      if (parsed.isEmpty) {
+        return fallbackMessage;
+      }
+      return parsed;
+    } catch (e) {
+      print('===== 文本对话请求异常 =====');
+      print(e.toString());
+      if (e is DioException && e.response != null) {
+        print('接口详细报错: ${e.response?.data}');
+      }
+      print('==========================');
+      return fallbackMessage;
     }
   }
 
@@ -152,4 +237,4 @@ class DoubaoApiService {
 
     return '';
   }
-
+}
