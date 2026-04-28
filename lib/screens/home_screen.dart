@@ -287,7 +287,8 @@ class _HomeScreenState extends State<HomeScreen> {
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onDoubleTap: _handleDoubleTapCapture,
-                onLongPress: _openLiveVisionMode,
+                onLongPressStart: (_) => _openLiveVisionMode(),
+                onLongPressEnd: (_) => LiveVisionScreen.requestExit(),
               ),
             ),
             Align(

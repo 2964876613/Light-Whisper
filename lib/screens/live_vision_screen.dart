@@ -10,6 +10,12 @@ import '../services/doubao_api_service.dart';
 class LiveVisionScreen extends StatefulWidget {
   const LiveVisionScreen({super.key});
 
+  static final ValueNotifier<int> _exitSignal = ValueNotifier<int>(0);
+
+  static void requestExit() {
+    _exitSignal.value++;
+  }
+
   @override
   State<LiveVisionScreen> createState() => _LiveVisionScreenState();
 }
@@ -29,6 +35,7 @@ class _LiveVisionScreenState extends State<LiveVisionScreen> {
   @override
   void initState() {
     super.initState();
+    LiveVisionScreen._exitSignal.addListener(_handleExternalExit);
     _setupTts();
     _initCameraAndLoop();
   }
@@ -117,6 +124,11 @@ class _LiveVisionScreenState extends State<LiveVisionScreen> {
     }
   }
 
+  void _handleExternalExit() {
+    if (!_isRunning || !mounted) return;
+    _stopAndExit();
+  }
+
   Future<void> _stopAndExit() async {
     if (!_isRunning) return;
     _isRunning = false;
@@ -129,6 +141,7 @@ class _LiveVisionScreenState extends State<LiveVisionScreen> {
 
   @override
   void dispose() {
+    LiveVisionScreen._exitSignal.removeListener(_handleExternalExit);
     _isRunning = false;
     _loopTimer?.cancel();
     _tts.stop();
