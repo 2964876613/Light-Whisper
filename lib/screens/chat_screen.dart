@@ -155,6 +155,7 @@ class _ChatScreenState extends State<ChatScreen> {
       await _speechService.startListening(
         onText: (value) {
           if (!mounted) return;
+          if (_liveSpeechText == value && _textController.text == value) return;
           setState(() {
             _liveSpeechText = value;
             _textController.text = value;
@@ -200,7 +201,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _sendFollowupQuestion(String text) async {
-    if (text.trim().isEmpty) return;
+    if (_isLoading || text.trim().isEmpty) return;
 
     if (!mounted) return;
     setState(() {

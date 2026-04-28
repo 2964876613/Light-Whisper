@@ -108,9 +108,11 @@ class _LiveVisionScreenState extends State<LiveVisionScreen> {
       );
       if (!mounted || !_isRunning) return;
 
-      setState(() {
-        _latestResult = answer;
-      });
+      if (_latestResult != answer) {
+        setState(() {
+          _latestResult = answer;
+        });
+      }
 
       await _tts.stop();
       await _tts.speak(answer);
