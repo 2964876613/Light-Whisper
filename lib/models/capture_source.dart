@@ -1,0 +1,4 @@
+enum CaptureSource {
+  camera,
+  shake,
+}

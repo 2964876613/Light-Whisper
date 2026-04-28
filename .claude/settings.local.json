@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter pub *)",
+      "Bash(flutter analyze *)",
+      "Bash(flutter test *)",
+      "Bash(export HTTP_PROXY=\"http://127.0.0.1:6244\" HTTPS_PROXY=\"http://127.0.0.1:6244\")"
+    ]
+  }
+}
