@@ -105,6 +105,7 @@ JSON 格式如下：
 ''';
 
   static const String fallbackMessage = '网络环境不佳，AI暂时无法连线，请依靠导盲杖确保安全。';
+  static const String recognitionFallbackMessage = '画面信息不足，暂时无法稳定识别，请调整角度后重试。';
   static const String _safetyFallbackTts = '画面模糊，无法识别，请结合导盲杖判断。';
 
   String get _modelId => dotenv.env['VOLC_MODEL_ID']?.trim() ?? '';
@@ -112,23 +113,38 @@ JSON 格式如下：
   String get _apiKey => dotenv.env['ARK_API_KEY']?.trim() ?? '';
 
   Future<String> analyzeImage(File imageFile, {String? singleQuestion}) async {
-    final structured = await analyzeImageStructured(
+    final response = await _analyzeImageStructuredWithStatus(
       imageFile,
       singleQuestion: singleQuestion,
     );
-    return structured?.ttsText ?? fallbackMessage;
+    if (response.result != null) {
+      return response.result!.ttsText;
+    }
+    return response.networkError ? fallbackMessage : recognitionFallbackMessage;
   }
 
   Future<StructuredVisionResult?> analyzeImageStructured(
     File imageFile, {
     String? singleQuestion,
   }) async {
+    final response = await _analyzeImageStructuredWithStatus(
+      imageFile,
+      singleQuestion: singleQuestion,
+    );
+    return response.result;
+  }
+
+  Future<({StructuredVisionResult? result, bool networkError})>
+      _analyzeImageStructuredWithStatus(
+    File imageFile, {
+    String? singleQuestion,
+  }) async {
     if (!await imageFile.exists()) {
-      return null;
+      return (result: null, networkError: false);
     }
 
     if (_apiKey.isEmpty || _modelId.isEmpty) {
-      return null;
+      return (result: null, networkError: true);
     }
 
     File? preparedImage;
@@ -170,10 +186,10 @@ JSON 格式如下：
 
       final parsed = _extractResponseText(response.data);
       if (parsed.isEmpty) {
-        return null;
+        return (result: null, networkError: false);
       }
 
-      return _parseStructuredResult(parsed);
+      return (result: _parseStructuredResult(parsed), networkError: false);
     } catch (e) {
       debugPrint('===== 网络请求引发了异常 =====');
       debugPrint(e.toString());
@@ -183,7 +199,7 @@ JSON 格式如下：
       }
 
       debugPrint('==============================');
-      return null;
+      return (result: null, networkError: true);
     } finally {
       if (preparedImage != null &&
           preparedImage.path != imageFile.path &&

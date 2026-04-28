@@ -297,7 +297,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.only(bottom: 36),
                 child: Semantics(
                   liveRegion: true,
-                  label: '提示：双击拍一拍，摇动进入数字模式',
+                  label: '提示：双击拍一拍，摇动进入图片解析，长按进入实时播报',
                   child: Text(
                     _cameraStatusText,
                     style: const TextStyle(
