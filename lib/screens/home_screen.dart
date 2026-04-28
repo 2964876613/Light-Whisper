@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:photo_manager/photo_manager.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:vibration/vibration.dart';
 
@@ -159,20 +160,55 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<String?> _pickLatestGalleryImagePath() async {
+    final permission = await PhotoManager.requestPermissionExtend();
+    if (!permission.isAuth) {
+      return null;
+    }
+
+    final albums = await PhotoManager.getAssetPathList(
+      type: RequestType.image,
+      onlyAll: true,
+      filterOption: FilterOptionGroup(
+        orders: [
+          const OrderOption(type: OrderOptionType.createDate, asc: false),
+        ],
+      ),
+    );
+    if (albums.isEmpty) {
+      return null;
+    }
+
+    final assets = await albums.first.getAssetListPaged(page: 0, size: 1);
+    if (assets.isEmpty) {
+      return null;
+    }
+
+    final file = await assets.first.file;
+    return file?.path;
+  }
+
   Future<void> _handleShakeCapture() async {
     if (_isCapturing || !mounted) return;
     _isCapturing = true;
 
     await _vibrate(durationMs: 220);
+    final latestPath = await _pickLatestGalleryImagePath();
 
     if (!mounted) return;
     _isCapturing = false;
 
+    if (latestPath == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('未读取到可用图片，已进入无图解析')),
+      );
+    }
+
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => const ChatScreen(
+        builder: (_) => ChatScreen(
           captureSource: CaptureSource.shake,
-          imagePath: null,
+          imagePath: latestPath,
         ),
       ),
     );
