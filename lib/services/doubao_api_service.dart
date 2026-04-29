@@ -44,9 +44,9 @@ class DoubaoApiService {
             Dio(
               BaseOptions(
                 baseUrl: _baseUrl,
-                connectTimeout: const Duration(seconds: 30),
-                receiveTimeout: const Duration(seconds: 30),
-                sendTimeout: const Duration(seconds: 30),
+                connectTimeout: const Duration(seconds: 60),
+                receiveTimeout: const Duration(seconds: 60),
+                sendTimeout: const Duration(seconds: 60),
                 headers: const {'Content-Type': 'application/json'},
               ),
             );
