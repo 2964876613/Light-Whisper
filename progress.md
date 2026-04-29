@@ -20,3 +20,19 @@
 - New TTS init strategy now uses up to 10 probe attempts (500ms interval) via `isLanguageAvailable('zh-CN')` before marking initialized.
 - Added non-crashing ASR fallback: `SpeechService.ensurePermissionAndInit` now catches `PlatformException(recognizerNotAvailable)` and returns `false` instead of throwing.
 - Reduced noisy TTS stop errors on unbound devices: `TtsService.stop()` now no-ops when engine is not initialized.
+
+## Session 2026-04-30
+- Approved and wrote design spec:
+  - `docs/superpowers/specs/2026-04-30-shake-gallery-permission-design.md`
+- Confirmed root cause of missing gallery prompt:
+  - `android/app/src/main/AndroidManifest.xml` lacks Android gallery read permission declarations
+- Confirmed existing shake analysis chain after path resolution:
+  - `lib/screens/home_screen.dart` -> `lib/screens/chat_screen.dart` -> `lib/services/doubao_api_service.dart`
+- Converted the approved spec into implementation phases in `task_plan.md`.
+- Recorded new findings for explicit outcome branching, settings redirection, and out-of-scope files.
+- Planning handoff note: `session-catchup.py` exited with code 49, so planning continued from current files and the approved spec.
+- Added Android gallery permission declarations to `android/app/src/main/AndroidManifest.xml`.
+- Refactored `lib/screens/home_screen.dart` shake flow to resolve explicit outcomes for success, no-image, denied, and permanently denied before navigation.
+- Added home-screen permission dialog with `去设置 / 取消`; denied permission no longer falls through into `ChatScreen`.
+- Ran IDE diagnostics and `flutter analyze lib/screens/home_screen.dart`; fixed one `use_build_context_synchronously` lint by guarding with `mounted` after the dialog await.
+- Final static validation result for `lib/screens/home_screen.dart`: no diagnostics, `flutter analyze` clean for the updated file.

@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:vibration/vibration.dart';
@@ -16,6 +17,23 @@ class HomeScreen extends StatefulWidget {
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
+}
+
+enum _GalleryAccessStatus {
+  success,
+  noImage,
+  denied,
+  permanentlyDenied,
+}
+
+class _GalleryImageResolution {
+  const _GalleryImageResolution({
+    required this.status,
+    this.imagePath,
+  });
+
+  final _GalleryAccessStatus status;
+  final String? imagePath;
 }
 
 class _HomeScreenState extends State<HomeScreen> {
@@ -161,10 +179,16 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<String?> _pickLatestGalleryImagePath() async {
+  Future<_GalleryImageResolution> _resolveLatestGalleryImage() async {
     final permission = await PhotoManager.requestPermissionExtend();
     if (!permission.hasAccess) {
-      return null;
+      final photoStatus = await Permission.photos.status;
+      if (photoStatus.isPermanentlyDenied || photoStatus.isRestricted) {
+        return const _GalleryImageResolution(
+          status: _GalleryAccessStatus.permanentlyDenied,
+        );
+      }
+      return const _GalleryImageResolution(status: _GalleryAccessStatus.denied);
     }
 
     final filter = FilterOptionGroup(
@@ -193,12 +217,40 @@ class _HomeScreenState extends State<HomeScreen> {
       for (final asset in assets) {
         final file = await asset.file;
         if (file != null) {
-          return file.path;
+          return _GalleryImageResolution(
+            status: _GalleryAccessStatus.success,
+            imagePath: file.path,
+          );
         }
       }
     }
 
-    return null;
+    return const _GalleryImageResolution(status: _GalleryAccessStatus.noImage);
+  }
+
+  Future<void> _showGalleryPermissionDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('需要相册权限'),
+        content: const Text('摇一摇识别需要读取相册中的最近图片，请先开启相册权限。'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+            },
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(dialogContext).pop();
+              await openAppSettings();
+            },
+            child: const Text('去设置'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _handleShakeCapture() async {
@@ -206,25 +258,43 @@ class _HomeScreenState extends State<HomeScreen> {
     _isCapturing = true;
 
     await _vibrate(durationMs: 220);
-    final latestPath = await _pickLatestGalleryImagePath();
+    final resolution = await _resolveLatestGalleryImage();
 
     if (!mounted) return;
     _isCapturing = false;
 
-    if (latestPath == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('未读取到可用图片，已进入无图解析')),
-      );
+    switch (resolution.status) {
+      case _GalleryAccessStatus.success:
+        final latestPath = resolution.imagePath;
+        if (latestPath == null || latestPath.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('未读取到可用图片')),
+          );
+          return;
+        }
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ChatScreen(
+              captureSource: CaptureSource.shake,
+              imagePath: latestPath,
+            ),
+          ),
+        );
+        return;
+      case _GalleryAccessStatus.noImage:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('未读取到可用图片')),
+        );
+        return;
+      case _GalleryAccessStatus.denied:
+      case _GalleryAccessStatus.permanentlyDenied:
+        await _showGalleryPermissionDialog();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('未开启相册权限，无法读取图片')),
+        );
+        return;
     }
-
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ChatScreen(
-          captureSource: CaptureSource.shake,
-          imagePath: latestPath,
-        ),
-      ),
-    );
   }
 
   Future<void> _openLiveVisionMode() async {
