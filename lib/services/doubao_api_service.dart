@@ -550,7 +550,7 @@ class DoubaoApiService {
         '${imageFile.path}.compressed.jpg',
         minWidth: 720,
         minHeight: 720,
-        quality: 58,
+        quality: 75,
         format: CompressFormat.jpeg,
       );
       if (compressed == null) {
