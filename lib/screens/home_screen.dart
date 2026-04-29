@@ -62,7 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       final controller = CameraController(
         backCamera,
-        ResolutionPreset.medium,
+        ResolutionPreset.low,
         enableAudio: false,
       );
 
@@ -163,30 +163,42 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<String?> _pickLatestGalleryImagePath() async {
     final permission = await PhotoManager.requestPermissionExtend();
-    if (!permission.isAuth) {
+    if (!permission.hasAccess) {
       return null;
     }
 
-    final albums = await PhotoManager.getAssetPathList(
+    final filter = FilterOptionGroup(
+      orders: [
+        const OrderOption(type: OrderOptionType.createDate, asc: false),
+      ],
+    );
+
+    final allAlbums = await PhotoManager.getAssetPathList(
       type: RequestType.image,
       onlyAll: true,
-      filterOption: FilterOptionGroup(
-        orders: [
-          const OrderOption(type: OrderOptionType.createDate, asc: false),
-        ],
-      ),
+      filterOption: filter,
     );
-    if (albums.isEmpty) {
-      return null;
+
+    final candidateAlbums = <AssetPathEntity>[
+      ...allAlbums,
+      ...await PhotoManager.getAssetPathList(
+        type: RequestType.image,
+        onlyAll: false,
+        filterOption: filter,
+      ),
+    ];
+
+    for (final album in candidateAlbums) {
+      final assets = await album.getAssetListPaged(page: 0, size: 20);
+      for (final asset in assets) {
+        final file = await asset.file;
+        if (file != null) {
+          return file.path;
+        }
+      }
     }
 
-    final assets = await albums.first.getAssetListPaged(page: 0, size: 1);
-    if (assets.isEmpty) {
-      return null;
-    }
-
-    final file = await assets.first.file;
-    return file?.path;
+    return null;
   }
 
   Future<void> _handleShakeCapture() async {

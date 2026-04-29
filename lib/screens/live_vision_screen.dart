@@ -3,9 +3,9 @@ import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart';
 
 import '../services/doubao_api_service.dart';
+import '../services/tts_service.dart';
 
 class LiveVisionScreen extends StatefulWidget {
   const LiveVisionScreen({super.key});
@@ -22,7 +22,6 @@ class LiveVisionScreen extends StatefulWidget {
 
 class _LiveVisionScreenState extends State<LiveVisionScreen> {
   final DoubaoApiService _aiService = DoubaoApiService();
-  final FlutterTts _tts = FlutterTts();
 
   CameraController? _cameraController;
   Timer? _loopTimer;
@@ -30,21 +29,14 @@ class _LiveVisionScreenState extends State<LiveVisionScreen> {
   bool _isRunning = true;
   bool _isRequesting = false;
   String _latestResult = '正在启动实时感知';
+  String _lastSpokenText = '';
   String _singleQuestion = '这是什么画面';
 
   @override
   void initState() {
     super.initState();
     LiveVisionScreen._exitSignal.addListener(_handleExternalExit);
-    _setupTts();
     _initCameraAndLoop();
-  }
-
-  Future<void> _setupTts() async {
-    await _tts.setLanguage('zh-CN');
-    await _tts.setSpeechRate(0.42);
-    await _tts.setVolume(1.0);
-    await _tts.setPitch(1.0);
   }
 
   Future<void> _initCameraAndLoop() async {
@@ -65,7 +57,7 @@ class _LiveVisionScreenState extends State<LiveVisionScreen> {
 
       final controller = CameraController(
         back,
-        ResolutionPreset.medium,
+        ResolutionPreset.low,
         enableAudio: false,
       );
 
@@ -102,10 +94,14 @@ class _LiveVisionScreenState extends State<LiveVisionScreen> {
     try {
       final frame = await controller.takePicture();
       final imageFile = File(frame.path);
-      final answer = await _aiService.analyzeImage(
-        imageFile,
-        singleQuestion: _singleQuestion,
-      );
+      final analysis = await _aiService
+          .analyzeImageWithFallback(
+            imageFile,
+            singleQuestion: _singleQuestion,
+            preferLitePrompt: true,
+          )
+          .timeout(const Duration(seconds: 10));
+      final answer = analysis.ttsText;
       if (!mounted || !_isRunning) return;
 
       if (_latestResult != answer) {
@@ -114,15 +110,32 @@ class _LiveVisionScreenState extends State<LiveVisionScreen> {
         });
       }
 
-      await _tts.stop();
-      await _tts.speak(answer);
+      await _speakSafely(answer);
+    } on TimeoutException {
+      if (!mounted || !_isRunning) return;
+      const timeoutHint = '识别较慢，已跳过本轮';
+      if (_latestResult != timeoutHint) {
+        setState(() {
+          _latestResult = timeoutHint;
+        });
+      }
+      await _speakSafely(timeoutHint);
     } catch (_) {
       if (!mounted || !_isRunning) return;
       setState(() {
         _latestResult = DoubaoApiService.fallbackMessage;
       });
+      await _speakSafely(DoubaoApiService.fallbackMessage);
     } finally {
       _isRequesting = false;
+    }
+  }
+
+  Future<void> _speakSafely(String text) async {
+    if (_lastSpokenText == text) return;
+    final ok = await TtsService.instance.speak(text);
+    if (ok) {
+      _lastSpokenText = text;
     }
   }
 
@@ -136,7 +149,7 @@ class _LiveVisionScreenState extends State<LiveVisionScreen> {
     _isRunning = false;
     _loopTimer?.cancel();
     _loopTimer = null;
-    await _tts.stop();
+    await TtsService.instance.stop();
     if (!mounted) return;
     Navigator.of(context).pop();
   }
@@ -146,7 +159,7 @@ class _LiveVisionScreenState extends State<LiveVisionScreen> {
     LiveVisionScreen._exitSignal.removeListener(_handleExternalExit);
     _isRunning = false;
     _loopTimer?.cancel();
-    _tts.stop();
+    TtsService.instance.stop();
     _cameraController?.dispose();
     super.dispose();
   }

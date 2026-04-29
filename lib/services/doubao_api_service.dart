@@ -6,22 +6,36 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 
-class StructuredVisionResult {
-  const StructuredVisionResult({
-    required this.sceneType,
-    required this.safetyLevel,
-    required this.safetyConfidence,
-    required this.fallbackNeeded,
-    required this.ttsText,
-    required this.raw,
+enum ImageAnalysisResultKind {
+  textFallbackSuccess,
+  networkFailure,
+  emptyResponseFailure,
+}
+
+class LiteVisionMeta {
+  const LiteVisionMeta({
+    required this.obstacleText,
+    required this.riskLevel,
+    required this.briefDescription,
   });
 
-  final String sceneType;
-  final String safetyLevel;
-  final double safetyConfidence;
-  final bool fallbackNeeded;
+  final String obstacleText;
+  final String riskLevel;
+  final String briefDescription;
+}
+
+class ImageAnalysisResult {
+  const ImageAnalysisResult({
+    required this.kind,
+    required this.ttsText,
+    this.rawText,
+    this.liteMeta,
+  });
+
+  final ImageAnalysisResultKind kind;
   final String ttsText;
-  final Map<String, dynamic> raw;
+  final String? rawText;
+  final LiteVisionMeta? liteMeta;
 }
 
 class DoubaoApiService {
@@ -30,9 +44,9 @@ class DoubaoApiService {
             Dio(
               BaseOptions(
                 baseUrl: _baseUrl,
-                connectTimeout: const Duration(seconds: 15),
-                receiveTimeout: const Duration(seconds: 15),
-                sendTimeout: const Duration(seconds: 15),
+                connectTimeout: const Duration(seconds: 30),
+                receiveTimeout: const Duration(seconds: 30),
+                sendTimeout: const Duration(seconds: 30),
                 headers: const {'Content-Type': 'application/json'},
               ),
             );
@@ -42,123 +56,69 @@ class DoubaoApiService {
   static const String _baseUrl = 'https://ark.cn-beijing.volces.com/api/v3';
   static const String _responsesPath = '/responses';
 
-  static const String _safetySystemPrompt = '''你是“光语 (LightWhisper)”的核心视觉引擎，专门为视障人士提供高可靠性的环境感知与数字内容解析。你的输出将直接通过 TTS (语音合成) 播报给用户，因此你的回答必须绝对安全、极度简练、客观准确。
+  static const String _safetySystemPrompt = '''你是光语视觉助手。只输出客观结论，给盲人语音播报。
+规则：
+1) 不猜测，不确定就返回固定句：画面模糊，无法识别，请结合导盲杖判断。
+2) 不给“绝对安全/可放心前行”这类结论。
+3) 输出简短，直接给结果。''';
 
-【核心安全原则：最高指令】
-1. 严禁幻觉与猜测：如果你对画面内容的确信度低于90%，或者画面模糊、严重曝光、被遮挡，必须立即中断解析，严格回复：“画面模糊，无法识别，请结合导盲杖判断。”
-2. 绝对禁止危险指令：永远不要告诉用户“绝对安全”或“可以放心前行”。你只是辅助雷达，客观描述环境，不替用户做生死决定。
-3. 零废话原则：严禁使用“在这张图片中”、“我看到了”、“看起来像是”等前置语。直接输出结论。
-
-【场景一：户外环境模式（当识别到自然环境照片时）】
-请按以下优先级进行扫描并输出，单次播报控制在15个字以内：
-1. 交通信号：首先寻找红绿灯。格式：“前方红绿灯：[红/绿/黄]灯”。
-2. 致命危险：寻找台阶下沉、坑洼、行驶中的车辆。格式：“[方位]，[预估距离]，[危险物]”。
-3. 阻挡物：寻找电线杆、共享单车、墙壁。格式：“[方位]，[预估距离]，[障碍物]”。
-示例输出：“正前方，两米，共享单车阻挡。”
-
-【场景二：数字界面模式（当识别到手机截图或海报时）】
-提取核心信息，忽略无关紧要的装饰元素。
-1. 明确类型：一句话概括这是什么页面（如：微信聊天界面、淘宝商品页、街边菜单）。
-2. 核心提取：提取画面中心最关键的文字或按钮功能。
-示例输出：“支付页面。中心是‘确认付款’按钮，金额五十元。”
-
-【用户对话处理（针对 Pro 用户追问）】
-当用户就刚才的图片进行语音追问时，你的回答依然需要遵循“极简且客观”的原则，直接回答用户关于方位、颜色、文字的具体问题，不要延展任何无关信息。''';
-
-  static const String _structuredJsonUserPrompt = '''请严格按以下要求返回：
-1) 只返回一个 JSON 对象，不要返回 markdown、代码块、解释文本或任何前后缀。
-2) 所有顶层字段必须存在，不可省略。
-3) 若任何关键判断确信度低于0.9，必须 fallback_needed=true，且 tts_text 必须是“画面模糊，无法识别，请结合导盲杖判断。”。
-4) distance_m 单位为米，confidence 范围为 0 到 1。
-5) 枚举值必须严格来自给定集合。
-
-JSON 格式如下：
-{
-  "scene_type": "outdoor|digital|unknown",
-  "summary": "string<=20字",
-  "safety": {
-    "level": "low|medium|high|critical",
-    "confidence": 0.0,
-    "fallback_needed": true
-  },
-  "hazards": [
-    {
-      "type": "vehicle|stairs|pit|obstacle|unknown",
-      "direction": "front|front_left|front_right|left|right|rear|unknown",
-      "distance_m": 0.0,
-      "confidence": 0.0
-    }
-  ],
-  "traffic_light": {
-    "state": "red|yellow|green|none|unknown",
-    "confidence": 0.0
-  },
-  "ocr_focus": [
-    {
-      "text": "string",
-      "role": "button|title|amount|label|unknown",
-      "confidence": 0.0
-    }
-  ],
-  "tts_text": "最终播报短句（<=15字）"
-}
-''';
+  static const String _safetySystemPromptLite = '''你是光语视觉助手。
+请只输出一行：障碍:xxx；风险:低|中|高；描述:xxx
+要求：客观、简短，不要JSON，不要解释，不要换行。
+不确定时返回：障碍:未明确；风险:中；描述:画面模糊，无法识别''';
 
   static const String fallbackMessage = '网络环境不佳，AI暂时无法连线，请依靠导盲杖确保安全。';
   static const String recognitionFallbackMessage = '画面信息不足，暂时无法稳定识别，请调整角度后重试。';
-  static const String _safetyFallbackTts = '画面模糊，无法识别，请结合导盲杖判断。';
+  static const int _maxTtsLength = 120;
 
   String get _modelId => dotenv.env['VOLC_MODEL_ID']?.trim() ?? '';
-
   String get _apiKey => dotenv.env['ARK_API_KEY']?.trim() ?? '';
 
-  Future<String> analyzeImage(File imageFile, {String? singleQuestion}) async {
-    final response = await _analyzeImageStructuredWithStatus(
-      imageFile,
-      singleQuestion: singleQuestion,
-    );
-    if (response.result != null) {
-      return response.result!.ttsText;
-    }
-    return response.networkError ? fallbackMessage : recognitionFallbackMessage;
-  }
-
-  Future<StructuredVisionResult?> analyzeImageStructured(
+  Future<ImageAnalysisResult> analyzeImageWithFallback(
     File imageFile, {
     String? singleQuestion,
+    bool preferLitePrompt = false,
   }) async {
-    final response = await _analyzeImageStructuredWithStatus(
-      imageFile,
-      singleQuestion: singleQuestion,
-    );
-    return response.result;
-  }
+    final totalStopwatch = Stopwatch()..start();
+    debugPrint('--- 📸 开始解析图片 (Doubao Vision) ---');
+    debugPrint('👉 接收到的图片路径: ${imageFile.path}');
 
-  Future<({StructuredVisionResult? result, bool networkError})>
-      _analyzeImageStructuredWithStatus(
-    File imageFile, {
-    String? singleQuestion,
-  }) async {
     if (!await imageFile.exists()) {
-      return (result: null, networkError: false);
+      debugPrint('❌ 错误: 图片文件不存在！');
+      return const ImageAnalysisResult(
+        kind: ImageAnalysisResultKind.emptyResponseFailure,
+        ttsText: recognitionFallbackMessage,
+      );
     }
+
+    debugPrint('🔑 读取到的 API Key: ${_apiKey.isNotEmpty ? "已读取(长度${_apiKey.length})" : "为空"}');
+    debugPrint('🧠 读取到的 Model ID: ${_modelId.isNotEmpty ? "已读取($_modelId)" : "为空"}');
 
     if (_apiKey.isEmpty || _modelId.isEmpty) {
-      return (result: null, networkError: true);
+      debugPrint('❌ 错误: API Key 或 Model ID 为空！请检查 .env 文件。');
+      return const ImageAnalysisResult(
+        kind: ImageAnalysisResultKind.networkFailure,
+        ttsText: fallbackMessage,
+      );
     }
 
     File? preparedImage;
     try {
+      final prepareStopwatch = Stopwatch()..start();
+      debugPrint('🔄 正在准备图片和 Payload...');
       preparedImage = await _prepareImageForUpload(imageFile);
       final imageDataUrl = await _buildBase64ImageDataUrl(preparedImage);
+      prepareStopwatch.stop();
+      debugPrint('⏱️ 预处理耗时: ${prepareStopwatch.elapsedMilliseconds}ms');
 
+      final systemPrompt = preferLitePrompt ? _safetySystemPromptLite : _safetySystemPrompt;
       final payload = {
         'model': _modelId,
         'input': [
           {
             'role': 'system',
             'content': [
-              {'type': 'input_text', 'text': _safetySystemPrompt},
+              {'type': 'input_text', 'text': systemPrompt},
             ],
           },
           {
@@ -167,13 +127,18 @@ JSON 格式如下：
               {'type': 'input_image', 'image_url': imageDataUrl},
               {
                 'type': 'input_text',
-                'text': _singleTurnPrompt(singleQuestion),
+                'text': _singleTurnPrompt(
+                  singleQuestion,
+                  preferLitePrompt: preferLitePrompt,
+                ),
               },
             ],
           }
         ],
       };
 
+      final requestStopwatch = Stopwatch()..start();
+      debugPrint('🚀 正在向火山引擎发起请求 (地址: $_baseUrl$_responsesPath)...');
       final response = await _dio.post(
         _responsesPath,
         data: payload,
@@ -183,24 +148,63 @@ JSON 格式如下：
           },
         ),
       );
+      requestStopwatch.stop();
+      debugPrint('⏱️ 请求耗时: ${requestStopwatch.elapsedMilliseconds}ms');
 
+      final parseStopwatch = Stopwatch()..start();
+      debugPrint('✅ 请求成功！正在提取文本数据...');
       final parsed = _extractResponseText(response.data);
       if (parsed.isEmpty) {
-        return (result: null, networkError: false);
+        debugPrint('⚠️ 警告: 提取到的文本为空。服务器原始返回数据: ${response.data}');
+        return const ImageAnalysisResult(
+          kind: ImageAnalysisResultKind.emptyResponseFailure,
+          ttsText: recognitionFallbackMessage,
+        );
       }
 
-      return (result: _parseStructuredResult(parsed), networkError: false);
+      if (kDebugMode) {
+        final preview = parsed.length > 200 ? '${parsed.substring(0, 200)}...' : parsed;
+        debugPrint('🤖 AI 返回原文预览: $preview');
+      }
+
+      final liteMeta = _parseLiteVisionMeta(parsed);
+      parseStopwatch.stop();
+      debugPrint('⏱️ 解析耗时: ${parseStopwatch.elapsedMilliseconds}ms');
+
+      final fallbackText = _buildFallbackSpeechText(parsed);
+      if (fallbackText.isEmpty) {
+        return ImageAnalysisResult(
+          kind: ImageAnalysisResultKind.emptyResponseFailure,
+          ttsText: recognitionFallbackMessage,
+          rawText: parsed,
+          liteMeta: liteMeta,
+        );
+      }
+
+      final resolvedText = liteMeta?.briefDescription.isNotEmpty == true
+          ? _clipTtsText(liteMeta!.briefDescription)
+          : fallbackText;
+      return ImageAnalysisResult(
+        kind: ImageAnalysisResultKind.textFallbackSuccess,
+        ttsText: resolvedText,
+        rawText: parsed,
+        liteMeta: liteMeta,
+      );
     } catch (e) {
-      debugPrint('===== 网络请求引发了异常 =====');
+      debugPrint('❌ 网络请求或处理异常 (catch块):');
       debugPrint(e.toString());
 
       if (e is DioException && e.response != null) {
-        debugPrint('接口详细报错: ${e.response?.data}');
+        debugPrint('接口详细报错状态码: ${e.response?.statusCode}');
+        debugPrint('接口详细报错内容: ${e.response?.data}');
       }
-
-      debugPrint('==============================');
-      return (result: null, networkError: true);
+      return const ImageAnalysisResult(
+        kind: ImageAnalysisResultKind.networkFailure,
+        ttsText: fallbackMessage,
+      );
     } finally {
+      totalStopwatch.stop();
+      debugPrint('⏱️ 总耗时: ${totalStopwatch.elapsedMilliseconds}ms');
       if (preparedImage != null &&
           preparedImage.path != imageFile.path &&
           await preparedImage.exists()) {
@@ -294,112 +298,6 @@ JSON 格式如下：
     }
   }
 
-  StructuredVisionResult? _parseStructuredResult(String raw) {
-    final map = _decodeJsonObject(raw);
-    if (map == null) {
-      return null;
-    }
-
-    const sceneTypes = {'outdoor', 'digital', 'unknown'};
-    const safetyLevels = {'low', 'medium', 'high', 'critical'};
-    const hazardTypes = {'vehicle', 'stairs', 'pit', 'obstacle', 'unknown'};
-    const hazardDirections = {
-      'front',
-      'front_left',
-      'front_right',
-      'left',
-      'right',
-      'rear',
-      'unknown',
-    };
-    const trafficLightStates = {'red', 'yellow', 'green', 'none', 'unknown'};
-    const ocrRoles = {'button', 'title', 'amount', 'label', 'unknown'};
-
-    final sceneType = map['scene_type'];
-    final summary = map['summary'];
-    final safety = map['safety'];
-    final hazards = map['hazards'];
-    final trafficLight = map['traffic_light'];
-    final ocrFocus = map['ocr_focus'];
-    final ttsText = map['tts_text'];
-
-    if (sceneType is! String || !sceneTypes.contains(sceneType)) return null;
-    if (summary is! String) return null;
-    if (safety is! Map<String, dynamic>) return null;
-    if (hazards is! List) return null;
-    if (trafficLight is! Map<String, dynamic>) return null;
-    if (ocrFocus is! List) return null;
-    if (ttsText is! String || ttsText.trim().isEmpty) return null;
-
-    final safetyLevel = safety['level'];
-    final safetyConfidence = _toDouble(safety['confidence']);
-    final fallbackNeeded = safety['fallback_needed'];
-    if (safetyLevel is! String || !safetyLevels.contains(safetyLevel)) return null;
-    if (safetyConfidence == null || safetyConfidence < 0 || safetyConfidence > 1) {
-      return null;
-    }
-    if (fallbackNeeded is! bool) return null;
-
-    for (final item in hazards) {
-      if (item is! Map<String, dynamic>) return null;
-      final type = item['type'];
-      final direction = item['direction'];
-      final distance = _toDouble(item['distance_m']);
-      final confidence = _toDouble(item['confidence']);
-      if (type is! String || !hazardTypes.contains(type)) return null;
-      if (direction is! String || !hazardDirections.contains(direction)) {
-        return null;
-      }
-      if (distance == null || distance < 0) return null;
-      if (confidence == null || confidence < 0 || confidence > 1) return null;
-    }
-
-    final trafficState = trafficLight['state'];
-    final trafficConfidence = _toDouble(trafficLight['confidence']);
-    if (trafficState is! String || !trafficLightStates.contains(trafficState)) {
-      return null;
-    }
-    if (trafficConfidence == null || trafficConfidence < 0 || trafficConfidence > 1) {
-      return null;
-    }
-
-    for (final item in ocrFocus) {
-      if (item is! Map<String, dynamic>) return null;
-      final text = item['text'];
-      final role = item['role'];
-      final confidence = _toDouble(item['confidence']);
-      if (text is! String) return null;
-      if (role is! String || !ocrRoles.contains(role)) return null;
-      if (confidence == null || confidence < 0 || confidence > 1) return null;
-    }
-
-    final hasLowHazardConfidence = hazards.isNotEmpty && hazards.any((item) {
-      if (item is! Map<String, dynamic>) return true;
-      final confidence = _toDouble(item['confidence']);
-      return confidence == null || confidence < 0.9;
-    });
-
-    final shouldFallback =
-        safetyConfidence < 0.9 || trafficConfidence < 0.9 || hasLowHazardConfidence;
-
-    if (shouldFallback && fallbackNeeded != true) {
-      return null;
-    }
-
-    final resolvedTts = fallbackNeeded == true
-        ? _safetyFallbackTts
-        : (ttsText.trim().length > 30 ? ttsText.trim().substring(0, 30) : ttsText.trim());
-
-    return StructuredVisionResult(
-      sceneType: sceneType,
-      safetyLevel: safetyLevel,
-      safetyConfidence: safetyConfidence,
-      fallbackNeeded: fallbackNeeded,
-      ttsText: resolvedTts,
-      raw: map,
-    );
-  }
-
   Map<String, dynamic>? _decodeJsonObject(String raw) {
     final direct = _tryDecode(raw);
     if (direct != null) {
@@ -428,11 +326,183 @@ JSON 格式如下：
     }
   }
 
-  double? _toDouble(dynamic value) {
-    if (value is num) {
-      return value.toDouble();
+  LiteVisionMeta? _parseLiteVisionMeta(String raw) {
+    final cleaned = raw
+        .replaceAll(RegExp(r'```(?:json)?', caseSensitive: false), ' ')
+        .replaceAll('```', ' ')
+        .replaceAll('\n', '；')
+        .replaceAll('\r', '；')
+        .trim();
+    if (cleaned.isEmpty) {
+      return null;
+    }
+
+    final segments = cleaned
+        .split(RegExp(r'[；;]'))
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+
+    String obstacle = '';
+    String risk = '';
+    String description = '';
+
+    for (final segment in segments) {
+      final normalized = segment.replaceAll('：', ':');
+      final idx = normalized.indexOf(':');
+      if (idx <= 0 || idx >= normalized.length - 1) {
+        continue;
+      }
+      final key = normalized.substring(0, idx).trim();
+      final value = normalized.substring(idx + 1).trim();
+      if (value.isEmpty) {
+        continue;
+      }
+
+      if (key.contains('障碍')) {
+        obstacle = value;
+      } else if (key.contains('风险')) {
+        risk = value;
+      } else if (key.contains('描述')) {
+        description = value;
+      }
+    }
+
+    if (description.isEmpty) {
+      description = _extractDescriptionFromLabeledLine(cleaned);
+    }
+    if (description.isEmpty) {
+      description = _buildFallbackSpeechText(raw);
+    }
+
+    if (risk.isEmpty) {
+      risk = _inferRiskLevel('$obstacle $description');
+    }
+
+    if (obstacle.isEmpty) {
+      obstacle = '未明确';
+    }
+
+    if (description.isEmpty) {
+      return null;
+    }
+
+    return LiteVisionMeta(
+      obstacleText: obstacle,
+      riskLevel: risk,
+      briefDescription: _clipTtsText(description),
+    );
+  }
+
+  String _extractDescriptionFromLabeledLine(String raw) {
+    final normalized = raw.replaceAll('：', ':');
+    final match = RegExp(r'描述\s*:\s*(.+?)(?=(；|;|$))').firstMatch(normalized);
+    final text = match?.group(1)?.trim() ?? '';
+    return text;
+  }
+
+  String _inferRiskLevel(String text) {
+    final lower = text.toLowerCase();
+    final highKeys = ['车辆', '车流', '台阶', '坑', '施工', '快速接近'];
+    final mediumKeys = ['障碍', '拥挤', '昏暗', '湿滑'];
+    final lowKeys = ['通畅', '无明显障碍'];
+
+    if (highKeys.any((k) => text.contains(k) || lower.contains(k))) {
+      return '高';
+    }
+    if (mediumKeys.any((k) => text.contains(k) || lower.contains(k))) {
+      return '中';
+    }
+    if (lowKeys.any((k) => text.contains(k) || lower.contains(k))) {
+      return '低';
+    }
+    return '未知';
+  }
+
+  String _buildFallbackSpeechText(String raw) {
+    final decoded = _decodeJsonObject(raw);
+    if (decoded != null) {
+      final ttsText = _clipTtsText(_nonEmptyString(decoded['tts_text']) ?? '');
+      if (ttsText.isNotEmpty) {
+        return ttsText;
+      }
+
+      final summary = _clipTtsText(_nonEmptyString(decoded['summary']) ?? '');
+      if (summary.isNotEmpty) {
+        return summary;
+      }
+
+      final ocrFocus = decoded['ocr_focus'];
+      if (ocrFocus is List) {
+        for (final item in ocrFocus) {
+          final map = _asStringMap(item);
+          final text = _clipTtsText(_nonEmptyString(map?['text']) ?? '');
+          if (text.isNotEmpty) {
+            return text;
+          }
+        }
+      }
+    }
+
+    final extracted = _extractQuotedField(raw, 'tts_text') ??
+        _extractQuotedField(raw, 'summary');
+    if (extracted != null) {
+      final clipped = _clipTtsText(extracted);
+      if (clipped.isNotEmpty) {
+        return clipped;
+      }
+    }
+
+    final cleanedText = raw
+        .replaceAll(RegExp(r'```(?:json)?', caseSensitive: false), ' ')
+        .replaceAll('```', ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (cleanedText.isEmpty) {
+      return '';
+    }
+    if (cleanedText.startsWith('{') && cleanedText.endsWith('}')) {
+      return '';
+    }
+    return _clipTtsText(cleanedText);
+  }
+
+  String? _extractQuotedField(String raw, String fieldName) {
+    final match = RegExp('"$fieldName"\\s*:\\s*"([^"\\n]+)"').firstMatch(raw);
+    final value = match?.group(1)?.trim();
+    if (value == null || value.isEmpty) {
+      return null;
+    }
+    return value;
+  }
+
+  String _clipTtsText(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+    return trimmed.length > _maxTtsLength
+        ? trimmed.substring(0, _maxTtsLength)
+        : trimmed;
+  }
+
+  Map<String, dynamic>? _asStringMap(dynamic value) {
+    if (value is Map) {
+      try {
+        return Map<String, dynamic>.from(value);
+      } catch (_) {
+        return null;
+      }
     }
     return null;
+  }
+
+  String? _nonEmptyString(dynamic value) {
+    if (value is! String) {
+      return null;
+    }
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
   }
 
   List<Map<String, String>> _truncateHistory(List<Map<String, String>> history) {
@@ -455,12 +525,22 @@ JSON 格式如下：
     }).toList();
   }
 
-  String _singleTurnPrompt(String? question) {
+  String _singleTurnPrompt(
+    String? question, {
+    bool preferLitePrompt = false,
+  }) {
     final q = question?.trim();
-    if (q == null || q.isEmpty) {
-      return _structuredJsonUserPrompt;
+    if (preferLitePrompt) {
+      if (q == null || q.isEmpty) {
+        return '只基于当前图片输出一行：障碍:xxx；风险:低|中|高；描述:xxx。不要JSON，不要解释。';
+      }
+      return '只基于当前图片回答问题：$q。输出一行：障碍:xxx；风险:低|中|高；描述:xxx。不要JSON，不要解释。';
     }
-    return '$_structuredJsonUserPrompt\n\n用户本轮问题：$q\n只回答当前这张图，不要引用历史对话。';
+
+    if (q == null || q.isEmpty) {
+      return '只基于当前图片输出一行：障碍:xxx；风险:低|中|高；描述:xxx。不要JSON，不要解释。';
+    }
+    return '只基于当前图片回答问题：$q。输出一行：障碍:xxx；风险:低|中|高；描述:xxx。不要JSON，不要解释。';
   }
 
   Future<File> _prepareImageForUpload(File imageFile) async {
@@ -468,9 +548,9 @@ JSON 格式如下：
       final compressed = await FlutterImageCompress.compressAndGetFile(
         imageFile.path,
         '${imageFile.path}.compressed.jpg',
-        minWidth: 1280,
-        minHeight: 1280,
-        quality: 78,
+        minWidth: 720,
+        minHeight: 720,
+        quality: 58,
         format: CompressFormat.jpeg,
       );
       if (compressed == null) {

@@ -8,7 +8,10 @@
       "Bash(HTTP_PROXY=\"http://127.0.0.1:6244\" HTTPS_PROXY=\"http://127.0.0.1:6244\" flutter test *)",
       "mcp__ide__getDiagnostics",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Skill(planning-with-files)",
+      "Bash(flutter clean *)",
+      "Bash(flutter build *)"
     ]
   }
 }
