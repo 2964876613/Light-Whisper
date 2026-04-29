@@ -69,8 +69,8 @@ class _ContinuousChatScreenState extends State<ContinuousChatScreen> {
     if (initStatus != AsrInitStatus.ready) {
       final message = switch (initStatus) {
         AsrInitStatus.permissionDenied => '麦克风权限未授予，请在设置中开启',
-        AsrInitStatus.recognizerUnavailable => '设备未提供语音识别服务，请安装或启用系统语音识别',
-        AsrInitStatus.initFailed => '语音识别初始化失败，请稍后重试',
+        AsrInitStatus.recognizerUnavailable => '语音识别服务连接失败，请检查网络后重试',
+        AsrInitStatus.initFailed => '语音识别配置缺失，请检查 .env',
         AsrInitStatus.ready => '',
       };
       if (message.isNotEmpty) {

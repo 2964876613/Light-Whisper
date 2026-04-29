@@ -1,10 +1,8 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:speech_to_text/speech_to_text.dart';
-import 'package:speech_to_text/speech_recognition_result.dart';
+
+import 'asr_service.dart';
 
 enum AsrInitStatus {
   ready,
@@ -14,16 +12,15 @@ enum AsrInitStatus {
 }
 
 class SpeechService {
-  SpeechService({SpeechToText? speechToText})
-      : _speechToText = speechToText ?? SpeechToText();
+  SpeechService({AsrService? asrService})
+      : _asrService = asrService ?? AsrService.instance;
 
-  final SpeechToText _speechToText;
+  final AsrService _asrService;
 
-  bool _initialized = false;
   String _lastPartialText = '';
   AsrInitStatus _lastInitStatus = AsrInitStatus.initFailed;
 
-  bool get isListening => _speechToText.isListening;
+  bool get isListening => _asrService.isRecording;
   AsrInitStatus get lastInitStatus => _lastInitStatus;
 
   Future<bool> ensurePermissionAndInit() async {
@@ -38,30 +35,15 @@ class SpeechService {
       return _lastInitStatus;
     }
 
-    if (_initialized) {
-      _lastInitStatus = AsrInitStatus.ready;
+    final apiKey = dotenv.env['ASR_API_KEY']?.trim() ?? '';
+    final resourceId = dotenv.env['ASR_API_RESOURCE_ID']?.trim() ?? '';
+    if (apiKey.isEmpty || resourceId.isEmpty) {
+      _lastInitStatus = AsrInitStatus.initFailed;
       return _lastInitStatus;
     }
 
-    try {
-      _initialized = await _speechToText.initialize();
-      _lastInitStatus = _initialized ? AsrInitStatus.ready : AsrInitStatus.initFailed;
-      return _lastInitStatus;
-    } on PlatformException catch (e) {
-      debugPrint('[ASR] initialize platform exception: ${e.code} ${e.message}');
-      _initialized = false;
-      if (e.code == 'recognizerNotAvailable') {
-        _lastInitStatus = AsrInitStatus.recognizerUnavailable;
-        return _lastInitStatus;
-      }
-      _lastInitStatus = AsrInitStatus.initFailed;
-      return _lastInitStatus;
-    } catch (e) {
-      debugPrint('[ASR] initialize failed: $e');
-      _initialized = false;
-      _lastInitStatus = AsrInitStatus.initFailed;
-      return _lastInitStatus;
-    }
+    _lastInitStatus = AsrInitStatus.ready;
+    return _lastInitStatus;
   }
 
   Future<void> startListening({
@@ -69,45 +51,40 @@ class SpeechService {
     String localeId = 'zh_CN',
   }) async {
     _lastPartialText = '';
-    debugPrint('[ASR] startListening locale=$localeId initialized=$_initialized');
-    if (!_initialized) {
-      final ok = await ensurePermissionAndInit();
-      if (!ok) {
-        throw Exception('麦克风权限未授予或语音识别不可用');
-      }
+    debugPrint('[ASR] startListening locale=$localeId');
+    final ok = await ensurePermissionAndInit();
+    if (!ok) {
+      throw Exception('麦克风权限未授予或语音识别服务不可用');
     }
 
-    if (_speechToText.isListening) {
+    if (_asrService.isRecording) {
       return;
     }
 
-    await _speechToText.listen(
-      localeId: localeId,
-      listenMode: ListenMode.dictation,
-      onResult: (SpeechRecognitionResult result) {
-        final words = result.recognizedWords.trim();
-        if (words.isNotEmpty) {
-          _lastPartialText = words;
+    try {
+      await _asrService.startRecording((text, isDefinite) {
+        final value = text.trim();
+        if (value.isEmpty) {
+          return;
         }
-        debugPrint('[ASR] onResult final=${result.finalResult} words="$words"');
-        onText(words);
-      },
-      pauseFor: const Duration(seconds: 4),
-      listenFor: const Duration(seconds: 45),
-      partialResults: true,
-      cancelOnError: true,
-    );
+        _lastPartialText = value;
+        onText(value);
+      });
+      _lastInitStatus = AsrInitStatus.ready;
+    } catch (e) {
+      debugPrint('[ASR] startListening failed: $e');
+      final message = e.toString();
+      if (message.contains('Missing ASR_')) {
+        _lastInitStatus = AsrInitStatus.initFailed;
+      } else {
+        _lastInitStatus = AsrInitStatus.recognizerUnavailable;
+      }
+      rethrow;
+    }
   }
 
   Future<String> stopListeningAndGetFinalText() async {
-    if (!_speechToText.isListening) {
-      return _lastPartialText.trim();
-    }
-
-    await _speechToText.stop();
-    await Future.delayed(const Duration(milliseconds: 320));
-
-    final words = _speechToText.lastRecognizedWords.trim();
+    final words = (await _asrService.stopRecording()).trim();
     debugPrint('[ASR] stop result words="$words" cached="$_lastPartialText"');
     if (words.isNotEmpty) {
       return words;
@@ -116,8 +93,6 @@ class SpeechService {
   }
 
   Future<void> cancelListening() async {
-    if (_speechToText.isListening) {
-      await _speechToText.cancel();
-    }
+    await _asrService.cancelRecording();
   }
 }
