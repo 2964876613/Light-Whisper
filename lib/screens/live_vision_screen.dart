@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../services/doubao_api_service.dart';
 import '../services/tts_service.dart';
@@ -27,6 +28,7 @@ class _LiveVisionScreenState extends State<LiveVisionScreen> {
   Timer? _loopTimer;
 
   bool _isRunning = true;
+  bool _isExiting = false;
   bool _isRequesting = false;
   String _latestResult = '正在启动实时感知';
   String _lastSpokenText = '';
@@ -145,13 +147,26 @@ class _LiveVisionScreenState extends State<LiveVisionScreen> {
   }
 
   Future<void> _stopAndExit() async {
-    if (!_isRunning) return;
+    if (!_isRunning || _isExiting) return;
+    _isExiting = true;
     _isRunning = false;
     _loopTimer?.cancel();
     _loopTimer = null;
     await TtsService.instance.stop();
+    try {
+      await _cameraController?.dispose();
+    } catch (_) {}
+    _cameraController = null;
     if (!mounted) return;
     Navigator.of(context).pop();
+  }
+
+  void _handleDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity > 250) {
+      HapticFeedback.mediumImpact();
+      unawaited(_stopAndExit());
+    }
   }
 
   @override
@@ -170,13 +185,13 @@ class _LiveVisionScreenState extends State<LiveVisionScreen> {
       backgroundColor: Colors.black,
       body: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onLongPressUp: _stopAndExit,
+        onHorizontalDragEnd: _handleDragEnd,
         child: SafeArea(
           child: Column(
             children: [
               const SizedBox(height: 12),
               const Text(
-                '实时感知中（松手退出）',
+                '实时感知中（左滑退出）',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 20,

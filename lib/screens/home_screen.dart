@@ -161,7 +161,7 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (_) {}
 
     try {
-      final hasVibrator = await Vibration.hasVibrator() ?? false;
+      final hasVibrator = await Vibration.hasVibrator();
       if (!hasVibrator) return;
       await Vibration.vibrate(duration: durationMs);
     } catch (_) {}
@@ -331,28 +331,36 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _openLiveVisionMode() async {
     if (_isCapturing || !mounted) return;
+    _isCapturing = true;
 
     await _vibrate(durationMs: 60);
 
     final controller = _cameraController;
-    var paused = false;
+    if (mounted) {
+      setState(() {
+        _cameraController = null;
+        _cameraInitFuture = null;
+        _cameraUnavailable = false;
+        _cameraStatusText = '正在切换到实时感知';
+      });
+    }
+
     try {
-      if (controller != null &&
-          controller.value.isInitialized &&
-          !controller.value.isPreviewPaused) {
-        await controller.pausePreview();
-        paused = true;
-      }
+      await controller?.dispose();
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    try {
       await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => const LiveVisionScreen(),
         ),
       );
     } finally {
-      if (paused && mounted) {
-        try {
-          await controller?.resumePreview();
-        } catch (_) {}
+      if (mounted) {
+        _isCapturing = false;
+        _initializeCamera();
       }
     }
   }
@@ -385,6 +393,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _accelerometerSubscription?.cancel();
     _cameraController?.dispose();
+    _cameraController = null;
+    _cameraInitFuture = null;
     super.dispose();
   }
 
@@ -420,7 +430,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 behavior: HitTestBehavior.opaque,
                 onDoubleTap: _handleDoubleTapCapture,
                 onLongPressStart: (_) => _openLiveVisionMode(),
-                onLongPressEnd: (_) => LiveVisionScreen.requestExit(),
               ),
             ),
             Align(
