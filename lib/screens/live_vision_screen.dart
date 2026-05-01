@@ -343,7 +343,7 @@ class _LiveVisionScreenState extends State<LiveVisionScreen> {
                 margin: EdgeInsets.symmetric(horizontal: t.space24),
                 padding: EdgeInsets.symmetric(horizontal: t.space16, vertical: t.space12),
                 child: Text(
-                  '实时感知中（长按提问｜左滑退出）',
+                  '实时感知中\n长按提问｜左滑退出',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: t.textPrimary,

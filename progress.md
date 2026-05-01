@@ -67,3 +67,4 @@
 - Migrated `lib/screens/continuous_chat_screen.dart` to Frosted baseline (glass scaffold/card, tokenized text/status, recording highlight) with existing ASR/AI flow unchanged.
 - Migrated `lib/screens/live_vision_screen.dart` overlays to Frosted baseline with camera-preview readability priority.
 - Validation: `flutter analyze lib/theme/lightwhisper_theme_v2.dart lib/widgets/frosted_primitives.dart lib/screens/home_screen.dart lib/screens/chat_screen.dart lib/screens/continuous_chat_screen.dart lib/screens/live_vision_screen.dart` passed.
+- Tuned home screen clarity by removing full-screen blur overlay and increasing camera capture preset from `ResolutionPreset.low` to `ResolutionPreset.medium` in `lib/screens/home_screen.dart`.

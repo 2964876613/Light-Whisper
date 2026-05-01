@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
-
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -91,7 +89,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       final controller = CameraController(
         backCamera,
-        ResolutionPreset.low,
+        ResolutionPreset.medium,
         enableAudio: false,
       );
 
@@ -107,7 +105,7 @@ class _HomeScreenState extends State<HomeScreen> {
       await initFuture;
       if (!mounted) return;
       setState(() {
-        _cameraStatusText = '双击拍一拍 | 摇动进入数字模式';
+        _cameraStatusText = '双击拍一拍 | 摇动进入图片解析\n长按进入实时感知';
       });
     } catch (_) {
       if (!mounted) return;
@@ -427,10 +425,7 @@ class _HomeScreenState extends State<HomeScreen> {
               )
             else
               _buildCameraFallback(),
-            BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-              child: Container(color: t.surfaceGlassSoft.withValues(alpha: 0.42)),
-            ),
+            Container(color: t.surfaceGlassSoft.withValues(alpha: 0.08)),
             Semantics(
               button: true,
               label: '全屏触控层，双击后拍照并进入解析',
@@ -446,7 +441,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: EdgeInsets.only(bottom: t.space32 + t.space4),
                 child: Semantics(
                   liveRegion: true,
-                  label: '提示：双击拍一拍，摇动进入图片解析，长按进入实时播报',
+                  label: '提示：双击拍一拍，摇动进入图片解析，长按进入实时感知',
                   child: GlassCard(
                     useMediumSurface: true,
                     padding: EdgeInsets.symmetric(
@@ -455,6 +450,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     child: Text(
                       _cameraStatusText,
+                      textAlign: TextAlign.center,
                       style: TextStyle(
                         color: t.textPrimary,
                         fontSize: 16,
