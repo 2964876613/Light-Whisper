@@ -68,6 +68,11 @@ class _HomeScreenState extends State<HomeScreen> {
   String _selectedVoiceId = VoiceSettingsService.defaultVoiceId;
   Timer? _voiceSelectorTimer;
 
+  static const Duration _voiceSelectorAutoHideDelay = Duration(
+    milliseconds: 2500,
+  );
+  static const double _voiceSelectorRevealVelocityThreshold = 350;
+
   @override
   void initState() {
     super.initState();
@@ -119,7 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
       await initFuture;
       if (!mounted) return;
       setState(() {
-        _cameraStatusText = '双击拍一拍 | 摇动进入图片解析\n长按进入实时感知';
+        _cameraStatusText = '双击拍一拍 | 摇动进入图片解析\n长按进入实时感知\n下拉进入语音选择';
       });
     } catch (_) {
       if (!mounted) return;
@@ -127,9 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _cameraUnavailable = true;
         _cameraStatusText = '相机初始化失败，双击可继续无图解析';
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('相机不可用，已切换到无图模式')),
-      );
+      _showSnackBar('相机不可用，已切换到无图模式');
     }
   }
 
@@ -281,6 +284,12 @@ class _HomeScreenState extends State<HomeScreen> {
     return const _GalleryImageResolution.failure(_GalleryAccessStatus.noImage);
   }
 
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _showGalleryPermissionDialog() async {
     await showDialog<void>(
       context: context,
@@ -328,17 +337,13 @@ class _HomeScreenState extends State<HomeScreen> {
         );
         return;
       case _GalleryAccessStatus.noImage:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('未读取到可用图片')),
-        );
+        _showSnackBar('未读取到可用图片');
         return;
       case _GalleryAccessStatus.denied:
       case _GalleryAccessStatus.permanentlyDenied:
         await _showGalleryPermissionDialog();
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('未开启相册权限，无法读取图片')),
-        );
+        _showSnackBar('未开启相册权限，无法读取图片');
         return;
     }
   }
@@ -408,24 +413,34 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _hideVoiceSelector() {
+    if (!mounted || !_showVoiceSelector) return;
+    setState(() {
+      _showVoiceSelector = false;
+    });
+  }
+
+  void _showVoiceSelectorPanel() {
+    if (_showVoiceSelector) {
+      _resetVoiceSelectorTimer();
+      return;
+    }
+    setState(() {
+      _showVoiceSelector = true;
+    });
+    _resetVoiceSelectorTimer();
+  }
+
   void _resetVoiceSelectorTimer() {
     _voiceSelectorTimer?.cancel();
-    _voiceSelectorTimer = Timer(const Duration(milliseconds: 2500), () {
-      if (!mounted || !_showVoiceSelector) return;
-      setState(() {
-        _showVoiceSelector = false;
-      });
-    });
+    _voiceSelectorTimer = Timer(_voiceSelectorAutoHideDelay, _hideVoiceSelector);
   }
 
   void _handleVerticalDragEnd(DragEndDetails details) {
     final velocity = details.primaryVelocity ?? 0;
     if (_isCapturing) return;
-    if (velocity <= 350) return;
-    setState(() {
-      _showVoiceSelector = true;
-    });
-    _resetVoiceSelectorTimer();
+    if (velocity <= _voiceSelectorRevealVelocityThreshold) return;
+    _showVoiceSelectorPanel();
   }
 
   Future<void> _selectVoice(String id) async {

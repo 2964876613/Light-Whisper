@@ -28,6 +28,8 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  static const double _exitSwipeVelocityThreshold = 250;
+
   final DoubaoApiService _aiVisionService = DoubaoApiService();
 
   bool _isLoading = true;
@@ -119,9 +121,16 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
+  String _buildProHintText({required bool canEnterContinuous}) {
+    if (!canEnterContinuous) {
+      return _isLoading || !_ttsFinished ? '正在播报，请稍候' : '暂不可进入连续对话';
+    }
+    return '长按屏幕进入连续对话';
+  }
+
   void _handleDragEnd(DragEndDetails details) {
     final velocity = details.primaryVelocity ?? 0;
-    if (velocity > 250) {
+    if (velocity > _exitSwipeVelocityThreshold) {
       Navigator.of(context).pop();
     }
   }
@@ -336,9 +345,7 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
 
-    final hintText = !canEnterContinuous
-        ? (_isLoading || !_ttsFinished ? '正在播报，请稍候' : '暂不可进入连续对话')
-        : '长按屏幕进入连续对话';
+    final hintText = _buildProHintText(canEnterContinuous: canEnterContinuous);
 
     final t = context.lwTheme;
     return Semantics(

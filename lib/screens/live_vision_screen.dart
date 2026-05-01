@@ -24,6 +24,8 @@ class LiveVisionScreen extends StatefulWidget {
 }
 
 class _LiveVisionScreenState extends State<LiveVisionScreen> {
+  static const double _exitSwipeVelocityThreshold = 250;
+
   final DoubaoApiService _aiService = DoubaoApiService();
   final SpeechService _speechService = SpeechService();
 
@@ -305,9 +307,15 @@ class _LiveVisionScreenState extends State<LiveVisionScreen> {
     Navigator.of(context).pop();
   }
 
+  String _buildLiveStatusHintText() {
+    if (_isRecording) return '正在聆听...';
+    if (_isAskingAi) return 'AI思考中...';
+    return '继续长按可提问';
+  }
+
   void _handleDragEnd(DragEndDetails details) {
     final velocity = details.primaryVelocity ?? 0;
-    if (velocity > 250) {
+    if (velocity > _exitSwipeVelocityThreshold) {
       HapticFeedback.mediumImpact();
       unawaited(_stopAndExit());
     }
@@ -377,9 +385,7 @@ class _LiveVisionScreenState extends State<LiveVisionScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _isRecording
-                            ? '正在聆听...'
-                            : (_isAskingAi ? 'AI思考中...' : '继续长按可提问'),
+                        _buildLiveStatusHintText(),
                         style: TextStyle(
                           color: t.textSecondary,
                           fontSize: 14,

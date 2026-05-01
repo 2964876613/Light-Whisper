@@ -27,6 +27,8 @@ class ContinuousChatScreen extends StatefulWidget {
 }
 
 class _ContinuousChatScreenState extends State<ContinuousChatScreen> {
+  static const double _exitSwipeVelocityThreshold = 250;
+
   final DoubaoApiService _aiService = DoubaoApiService();
   final SpeechService _speechService = SpeechService();
   bool _isLoading = false;
@@ -229,9 +231,15 @@ class _ContinuousChatScreenState extends State<ContinuousChatScreen> {
     }
   }
 
+  String _buildBottomHintText() {
+    if (_isRecording) return '正在聆听，请继续按住屏幕';
+    if (_isLoading) return '处理中，请稍候';
+    return '按住屏幕任意位置提问';
+  }
+
   void _handleDragEnd(DragEndDetails details) {
     final velocity = details.primaryVelocity ?? 0;
-    if (velocity > 250) {
+    if (velocity > _exitSwipeVelocityThreshold) {
       Navigator.of(context).pop();
     }
   }
@@ -306,9 +314,7 @@ class _ContinuousChatScreenState extends State<ContinuousChatScreen> {
                         useMediumSurface: true,
                         padding: EdgeInsets.all(t.space12),
                         child: Text(
-                          _isRecording
-                              ? '正在聆听，请继续按住屏幕'
-                              : (_isLoading ? '处理中，请稍候' : '按住屏幕任意位置提问'),
+                          _buildBottomHintText(),
                           textAlign: TextAlign.center,
                           style: TextStyle(color: t.textPrimary, fontSize: 16),
                         ),
