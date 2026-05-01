@@ -64,7 +64,7 @@ flutter_launcher_icons:
   android: true
   ios: false
   image_path: "docs/app-icon-a-whisper-drop.png"
-  adaptive_icon_background: "#F6E8DA" 
+  adaptive_icon_background: "#7D6053" 
   # 请准备一张背景透明、主体 Logo 居中且大小适中的 PNG 图片
   adaptive_icon_foreground: "docs/app-icon-a-whisper-drop.png"
   min_sdk_android: 21
