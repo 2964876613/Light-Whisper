@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import '../services/doubao_api_service.dart';
 import '../services/speech_service.dart';
 import '../services/tts_service.dart';
+import '../widgets/frosted_primitives.dart';
 
 class LiveVisionScreen extends StatefulWidget {
   const LiveVisionScreen({super.key});
@@ -324,8 +325,8 @@ class _LiveVisionScreenState extends State<LiveVisionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
+    final t = context.lwTheme;
+    return GlassScaffold(
       body: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onHorizontalDragEnd: _handleDragEnd,
@@ -336,70 +337,82 @@ class _LiveVisionScreenState extends State<LiveVisionScreen> {
             SafeArea(
               child: Column(
                 children: [
-              const SizedBox(height: 12),
-              const Text(
-                '实时感知中（长按提问｜左滑退出）',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+              SizedBox(height: t.space12),
+              GlassCard(
+                useMediumSurface: true,
+                margin: EdgeInsets.symmetric(horizontal: t.space24),
+                padding: EdgeInsets.symmetric(horizontal: t.space16, vertical: t.space12),
+                child: Text(
+                  '实时感知中（长按提问｜左滑退出）',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: t.textPrimary,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: t.space12),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _cameraController != null && _cameraController!.value.isInitialized
-                      ? IgnorePointer(
-                          child: CameraPreview(_cameraController!),
-                        )
-                      : const Center(
-                          child: CircularProgressIndicator(color: Colors.white),
+                  padding: EdgeInsets.symmetric(horizontal: t.space24),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(t.radiusCard),
+                    child: _cameraController != null && _cameraController!.value.isInitialized
+                        ? IgnorePointer(
+                            child: CameraPreview(_cameraController!),
+                          )
+                        : Center(
+                            child: CircularProgressIndicator(color: t.primaryAccent),
+                          ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: t.space24),
+                child: GlassCard(
+                  useMediumSurface: true,
+                  padding: EdgeInsets.all(t.space16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _isRecording
+                            ? '正在聆听...'
+                            : (_isAskingAi ? 'AI思考中...' : '继续长按可提问'),
+                        style: TextStyle(
+                          color: t.textSecondary,
+                          fontSize: 14,
                         ),
+                      ),
+                      SizedBox(height: t.space8),
+                      Text(
+                        _latestResult,
+                        style: TextStyle(
+                          color: t.textPrimary,
+                          fontSize: 18,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _isRecording
-                          ? '正在聆听...'
-                          : (_isAskingAi ? 'AI思考中...' : '继续长按可提问'),
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _latestResult,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
+              SizedBox(height: t.space12),
                 ],
               ),
             ),
             IgnorePointer(
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
+                duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOut,
                 decoration: BoxDecoration(
                   border: Border.all(
-                    color: _isRecording ? Colors.yellowAccent : Colors.transparent,
-                    width: _isRecording ? 4 : 0,
+                    color: _isRecording ? t.recordingAccent : Colors.transparent,
+                    width: _isRecording ? 3 : 0,
                   ),
                   color: _isRecording
-                      ? Colors.yellowAccent.withValues(alpha: 0.1)
+                      ? t.recordingAccent.withValues(alpha: 0.12)
                       : Colors.transparent,
                 ),
               ),

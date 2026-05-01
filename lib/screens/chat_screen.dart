@@ -10,6 +10,7 @@ import '../models/capture_source.dart';
 import '../providers/user_tier_provider.dart';
 import '../services/doubao_api_service.dart';
 import '../services/tts_service.dart';
+import '../widgets/frosted_primitives.dart';
 import 'continuous_chat_screen.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -174,8 +175,8 @@ class _ChatScreenState extends State<ChatScreen> {
     final isProUser = context.watch<UserTierProvider>().isProUser;
     final canEnterContinuous = isProUser && !_isLoading && _ttsFinished;
 
-    return Scaffold(
-      backgroundColor: Colors.black,
+    final t = context.lwTheme;
+    return GlassScaffold(
       body: Semantics(
         label: '播报完成后长按屏幕进入连续对话，向右滑动返回首页',
         child: GestureDetector(
@@ -187,33 +188,32 @@ class _ChatScreenState extends State<ChatScreen> {
               SafeArea(
                 child: Column(
                   children: [
-                    const SizedBox(height: 16),
+                    SizedBox(height: t.space16),
                     Semantics(
                       header: true,
                       label: '光语解析结果',
-                      child: const Text(
+                      child: Text(
                         '光语解析',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: t.textPrimary,
                           fontSize: 24,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: t.space24),
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        padding: EdgeInsets.symmetric(horizontal: t.space24),
                         child: Semantics(
                           liveRegion: true,
                           label: _buildResultSemanticsLabel(),
-                          child: Container(
-                            width: double.infinity,
-                            color: Colors.black,
-                            padding: const EdgeInsets.all(16),
+                          child: GlassCard(
+                            useMediumSurface: true,
+                            padding: EdgeInsets.all(t.space16),
                             child: _isLoading
-                                ? const Center(
-                                    child: CircularProgressIndicator(color: Colors.white),
+                                ? Center(
+                                    child: CircularProgressIndicator(color: t.primaryAccent),
                                   )
                                 : Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -235,8 +235,8 @@ class _ChatScreenState extends State<ChatScreen> {
                                           padding: const EdgeInsets.only(bottom: 10),
                                           child: Text(
                                             _contextHint,
-                                            style: const TextStyle(
-                                              color: Colors.lightBlueAccent,
+                                            style: TextStyle(
+                                              color: t.primaryAccent,
                                               fontSize: 15,
                                               fontWeight: FontWeight.w500,
                                             ),
@@ -244,8 +244,8 @@ class _ChatScreenState extends State<ChatScreen> {
                                         ),
                                       Text(
                                         _aiResult,
-                                        style: const TextStyle(
-                                          color: Colors.white,
+                                        style: TextStyle(
+                                          color: t.textPrimary,
                                           fontSize: 21,
                                           height: 1.45,
                                         ),
@@ -257,7 +257,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                      padding: EdgeInsets.fromLTRB(t.space24, t.space12, t.space24, t.space24),
                       child: _buildInputArea(
                         isProUser: isProUser,
                         canEnterContinuous: canEnterContinuous,
@@ -268,15 +268,15 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
               IgnorePointer(
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
+                  duration: const Duration(milliseconds: 220),
                   curve: Curves.easeOut,
                   decoration: BoxDecoration(
                     border: Border.all(
-                      color: _isJumpingToContinuous ? Colors.yellowAccent : Colors.transparent,
-                      width: _isJumpingToContinuous ? 4 : 0,
+                      color: _isJumpingToContinuous ? t.recordingAccent : Colors.transparent,
+                      width: _isJumpingToContinuous ? 3 : 0,
                     ),
                     color: _isJumpingToContinuous
-                        ? Colors.yellowAccent.withValues(alpha: 0.1)
+                        ? t.recordingAccent.withValues(alpha: 0.12)
                         : Colors.transparent,
                   ),
                 ),
@@ -307,30 +307,30 @@ class _ChatScreenState extends State<ChatScreen> {
   Color _safetyHintColor(String level) {
     switch (level) {
       case 'critical':
-        return Colors.redAccent;
+        return const Color(0xFFE45B5B);
       case 'high':
-        return Colors.deepOrangeAccent;
+        return const Color(0xFFEF8B52);
       case 'medium':
-        return Colors.amber;
+        return const Color(0xFFF1B357);
       case 'low':
-        return Colors.lightGreenAccent;
+        return const Color(0xFF67B886);
       default:
-        return Colors.amber;
+        return const Color(0xFFF1B357);
     }
   }
 
   Widget _buildInputArea({required bool isProUser, required bool canEnterContinuous}) {
     if (!isProUser) {
+      final t = context.lwTheme;
       return Semantics(
         label: '当前为免费用户，仅支持单次播报',
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          color: Colors.black,
+        child: GlassCard(
+          useMediumSurface: true,
+          padding: EdgeInsets.all(t.space12),
           child: Text(
             _isLoading || !_ttsFinished ? '免费模式：正在单次播报' : '免费模式：单次播报已完成',
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white, fontSize: 16),
+            style: TextStyle(color: t.textPrimary, fontSize: 16),
           ),
         ),
       );
@@ -340,16 +340,16 @@ class _ChatScreenState extends State<ChatScreen> {
         ? (_isLoading || !_ttsFinished ? '正在播报，请稍候' : '暂不可进入连续对话')
         : '长按屏幕进入连续对话';
 
+    final t = context.lwTheme;
     return Semantics(
       label: hintText,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        color: Colors.black,
+      child: GlassCard(
+        useMediumSurface: true,
+        padding: EdgeInsets.all(t.space12),
         child: Text(
           _isJumpingToContinuous ? '正在进入连续对话' : hintText,
           textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.white, fontSize: 16),
+          style: TextStyle(color: t.textPrimary, fontSize: 16),
         ),
       ),
     );

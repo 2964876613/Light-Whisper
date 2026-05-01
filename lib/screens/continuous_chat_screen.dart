@@ -8,6 +8,7 @@ import 'package:vibration/vibration.dart';
 import '../services/doubao_api_service.dart';
 import '../services/speech_service.dart';
 import '../services/tts_service.dart';
+import '../widgets/frosted_primitives.dart';
 
 class ContinuousChatScreen extends StatefulWidget {
   const ContinuousChatScreen({
@@ -237,8 +238,8 @@ class _ContinuousChatScreenState extends State<ContinuousChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
+    final t = context.lwTheme;
+    return GlassScaffold(
       body: Semantics(
         label: '连续对话页面，长按屏幕提问，向右滑动返回',
         child: GestureDetector(
@@ -251,26 +252,25 @@ class _ContinuousChatScreenState extends State<ContinuousChatScreen> {
               SafeArea(
                 child: Column(
                   children: [
-                    const SizedBox(height: 16),
-                    const Text(
+                    SizedBox(height: t.space16),
+                    Text(
                       '连续对话',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: t.textPrimary,
                         fontSize: 24,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: t.space24),
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: Container(
-                          width: double.infinity,
-                          color: Colors.black,
-                          padding: const EdgeInsets.all(16),
+                        padding: EdgeInsets.symmetric(horizontal: t.space24),
+                        child: GlassCard(
+                          useMediumSurface: true,
+                          padding: EdgeInsets.all(t.space16),
                           child: _isLoading
-                              ? const Center(
-                                  child: CircularProgressIndicator(color: Colors.white),
+                              ? Center(
+                                  child: CircularProgressIndicator(color: t.primaryAccent),
                                 )
                               : Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -280,8 +280,8 @@ class _ContinuousChatScreenState extends State<ContinuousChatScreen> {
                                         padding: const EdgeInsets.only(bottom: 10),
                                         child: Text(
                                           widget.initialContextHint,
-                                          style: const TextStyle(
-                                            color: Colors.yellowAccent,
+                                          style: TextStyle(
+                                            color: t.warningAccent,
                                             fontSize: 15,
                                             fontWeight: FontWeight.w500,
                                           ),
@@ -289,8 +289,8 @@ class _ContinuousChatScreenState extends State<ContinuousChatScreen> {
                                       ),
                                     Text(
                                       _currentReply,
-                                      style: const TextStyle(
-                                        color: Colors.white,
+                                      style: TextStyle(
+                                        color: t.textPrimary,
                                         fontSize: 21,
                                         height: 1.45,
                                       ),
@@ -300,16 +300,18 @@ class _ContinuousChatScreenState extends State<ContinuousChatScreen> {
                         ),
                       ),
                     ),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-                      color: Colors.black,
-                      child: Text(
-                        _isRecording
-                            ? '正在聆听，请继续按住屏幕'
-                            : (_isLoading ? '处理中，请稍候' : '按住屏幕任意位置提问'),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white, fontSize: 16),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(t.space24, t.space12, t.space24, t.space24),
+                      child: GlassCard(
+                        useMediumSurface: true,
+                        padding: EdgeInsets.all(t.space12),
+                        child: Text(
+                          _isRecording
+                              ? '正在聆听，请继续按住屏幕'
+                              : (_isLoading ? '处理中，请稍候' : '按住屏幕任意位置提问'),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: t.textPrimary, fontSize: 16),
+                        ),
                       ),
                     ),
                   ],
@@ -317,15 +319,15 @@ class _ContinuousChatScreenState extends State<ContinuousChatScreen> {
               ),
               IgnorePointer(
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
+                  duration: const Duration(milliseconds: 220),
                   curve: Curves.easeOut,
                   decoration: BoxDecoration(
                     border: Border.all(
-                      color: _isRecording ? Colors.yellowAccent : Colors.transparent,
-                      width: _isRecording ? 4 : 0,
+                      color: _isRecording ? t.recordingAccent : Colors.transparent,
+                      width: _isRecording ? 3 : 0,
                     ),
                     color: _isRecording
-                        ? Colors.yellowAccent.withValues(alpha: 0.1)
+                        ? t.recordingAccent.withValues(alpha: 0.12)
                         : Colors.transparent,
                   ),
                 ),

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'providers/user_tier_provider.dart';
 import 'screens/home_screen.dart';
+import 'theme/lightwhisper_theme_v2.dart';
 
 class LightWhisperApp extends StatelessWidget {
   const LightWhisperApp({super.key});
@@ -14,7 +15,7 @@ class LightWhisperApp extends StatelessWidget {
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'LightWhisper',
-        theme: ThemeData.dark(useMaterial3: true),
+        theme: buildLightwhisperTheme(),
         home: const HomeScreen(),
       ),
     );

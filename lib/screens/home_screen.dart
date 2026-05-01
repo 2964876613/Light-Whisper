@@ -10,6 +10,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'package:vibration/vibration.dart';
 
 import '../models/capture_source.dart';
+import '../widgets/frosted_primitives.dart';
 import 'chat_screen.dart';
 import 'live_vision_screen.dart';
 
@@ -194,6 +195,7 @@ class _HomeScreenState extends State<HomeScreen> {
         await controller.pausePreview();
         paused = true;
       }
+      if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => ChatScreen(
@@ -370,18 +372,23 @@ class _HomeScreenState extends State<HomeScreen> {
         ? '当前设备无可用相机\n可双击继续无图解析'
         : '正在连接相机...';
 
+    final t = context.lwTheme;
     return Semantics(
       label: message,
       child: ColoredBox(
-        color: Colors.black,
+        color: t.surfaceGlassMedium,
         child: Center(
-          child: Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 16,
-              height: 1.5,
+          child: Padding(
+            padding: EdgeInsets.all(t.space24),
+            child: Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: t.textSecondary,
+                fontSize: 16,
+                height: 1.5,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ),
@@ -400,7 +407,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final t = context.lwTheme;
+    return GlassScaffold(
       body: Semantics(
         label: '首页相机区域，双击拍照，摇动手机进入数字模式',
         child: Stack(
@@ -420,8 +428,8 @@ class _HomeScreenState extends State<HomeScreen> {
             else
               _buildCameraFallback(),
             BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(color: Colors.black.withValues(alpha: 0.12)),
+              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+              child: Container(color: t.surfaceGlassSoft.withValues(alpha: 0.42)),
             ),
             Semantics(
               button: true,
@@ -435,16 +443,23 @@ class _HomeScreenState extends State<HomeScreen> {
             Align(
               alignment: Alignment.bottomCenter,
               child: Padding(
-                padding: const EdgeInsets.only(bottom: 36),
+                padding: EdgeInsets.only(bottom: t.space32 + t.space4),
                 child: Semantics(
                   liveRegion: true,
                   label: '提示：双击拍一拍，摇动进入图片解析，长按进入实时播报',
-                  child: Text(
-                    _cameraStatusText,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                  child: GlassCard(
+                    useMediumSurface: true,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: t.space16,
+                      vertical: t.space12,
+                    ),
+                    child: Text(
+                      _cameraStatusText,
+                      style: TextStyle(
+                        color: t.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),

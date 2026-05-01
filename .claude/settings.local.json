@@ -12,7 +12,8 @@
       "Skill(planning-with-files)",
       "Bash(flutter clean *)",
       "Bash(flutter build *)",
-      "Bash(npm i *)"
+      "Bash(npm i *)",
+      "Bash(C:/Users/29648/.claude/skills/brainstorming/scripts/start-server.sh *)"
     ]
   }
 }

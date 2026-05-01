@@ -120,3 +120,50 @@ Implement the approved spec at `docs/superpowers/specs/2026-04-30-continuous-cha
 | Error | Attempt | Resolution |
 |---|---:|---|
 | `session-catchup.py` exited with code 49 during continuous-chat planning handoff | 1 | Continued from current planning files and approved spec because the repo state and prior planning context were already available |
+
+## Follow-on Task — UI Polish Frosted Minimal
+
+### Goal
+Implement the approved spec at `docs/superpowers/specs/2026-05-01-ui-polish-frosted-minimal-design.md` to deliver a modern, premium Frosted Minimal UI across the four core screens while keeping business behavior unchanged.
+
+### Scope
+- Add `LightwhisperThemeV2` token system using `ThemeExtension`
+- Introduce minimal shared UI primitives (`GlassScaffold`, `GlassCard`, `PrimaryPillButton`, `SoftInput`)
+- Migrate and polish all target screens:
+  - `lib/screens/home_screen.dart`
+  - `lib/screens/chat_screen.dart`
+  - `lib/screens/continuous_chat_screen.dart`
+  - `lib/screens/live_vision_screen.dart`
+- Keep state/data flow unchanged (presentation-layer-only changes)
+- Add verification coverage for visual consistency, usability, and performance watchpoints
+
+### Phases
+
+| Phase | Status | Description | Files |
+|---|---|---|---|
+| 18 | complete | Add `LightwhisperThemeV2` token layer and wire app theme entry points | `lib/main.dart`, theme-related files under `lib/` |
+| 19 | complete | Implement shared Frosted Minimal primitives | new/existing UI component files under `lib/` |
+| 20 | complete | Migrate `home_screen.dart` to token + primitive baseline | `lib/screens/home_screen.dart` |
+| 21 | complete | Migrate `chat_screen.dart` to token + primitive baseline | `lib/screens/chat_screen.dart` |
+| 22 | complete | Migrate `continuous_chat_screen.dart` with consistent state visuals | `lib/screens/continuous_chat_screen.dart` |
+| 23 | complete | Migrate `live_vision_screen.dart` overlays with readability-first polish | `lib/screens/live_vision_screen.dart` |
+| 24 | complete | Validate consistency/readability/performance and summarize | target screens + test artifacts |
+
+### Implementation Notes
+- Token-first rollout: baseline consistency first, then per-screen deep polish.
+- Prefer spacious layout rhythm (24/32 spacing) and single dominant CTA per major region.
+- Glass effects must not reduce text readability or input discoverability.
+- Keep blur/elevation at constrained levels to protect runtime performance.
+- No business logic refactors or behavior changes in this task.
+
+### Acceptance Checks
+1. Four target screens feel visually unified under one product language.
+2. Primary CTA remains immediately discoverable on each screen.
+3. Overlay text/control readability remains strong, including camera-preview contexts.
+4. Core flows (home entry, chat send, live vision start/exit, continuous-chat transitions) behave unchanged.
+5. No obvious frame pacing regressions in `live_vision_screen.dart` during normal interactions.
+
+### Errors Encountered
+| Error | Attempt | Resolution |
+|---|---:|---|
+| `session-catchup.py` exited with code 49 during UI planning handoff | 1 | Continued from current planning files and approved spec because repository state and active planning docs were already available |

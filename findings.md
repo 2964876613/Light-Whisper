@@ -36,3 +36,10 @@
 - `ContinuousChatScreen` can use a simple keyword heuristic locally to switch between `chatWithText(...)` and image-aware follow-up without introducing a separate classifier layer.
 - `DoubaoApiService` should keep two distinct follow-up prompts: a text follow-up prompt that answers naturally, and a visual follow-up prompt that answers only the requested detail.
 - Missing-image degradation should happen before the image-aware request is attempted so the app never implies it re-checked a photo that is no longer available.
+
+## 2026-05-01
+- Approved UI direction is Frosted Minimal (light, restrained, glass-like), with spacious layout density and token-first rollout.
+- User approved "all four core screens" in scope, but requested a baseline-first strategy before per-screen deep polish.
+- The approved implementation boundary is presentation-only: no data-flow or business-logic changes.
+- `live_vision_screen.dart` is the primary performance/readability risk area due to camera-preview overlays and blur layering.
+- New spec committed at `docs/superpowers/specs/2026-05-01-ui-polish-frosted-minimal-design.md` (`139e4ba`).
