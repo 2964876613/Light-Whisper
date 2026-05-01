@@ -167,3 +167,45 @@ Implement the approved spec at `docs/superpowers/specs/2026-05-01-ui-polish-fros
 | Error | Attempt | Resolution |
 |---|---:|---|
 | `session-catchup.py` exited with code 49 during UI planning handoff | 1 | Continued from current planning files and approved spec because repository state and active planning docs were already available |
+
+## Follow-on Task — Voice Pack Selector
+
+### Goal
+Implement the approved spec at `docs/superpowers/specs/2026-05-01-voice-pack-selector-design.md` to support multiple Volcano TTS speakers, persistent voice selection, and a home-screen downward-swipe selector container that auto-hides after selection.
+
+### Scope
+- Add voice-pack model and fixed catalog (6 approved speakers)
+- Add local persistence for selected voice id
+- Replace hardcoded speaker in `TtsService` with selected voice id
+- Add full-screen downward-swipe trigger on `HomeScreen`
+- Add lightweight in-home selector container with single-choice behavior
+- Auto-hide selector after selection and idle timeout
+
+### Phases
+
+| Phase | Status | Description | Files |
+|---|---|---|---|
+| 25 | complete | Add voice model/catalog and persistence service | `lib/models/voice_pack.dart`, `lib/services/voice_settings_service.dart`, `pubspec.yaml` |
+| 26 | complete | Integrate dynamic speaker resolution in `TtsService` | `lib/services/tts_service.dart` |
+| 27 | complete | Add home-screen downward-swipe trigger and selector container | `lib/screens/home_screen.dart` |
+| 28 | complete | Add selector lifecycle (selection hide + timeout hide + conflict guards) | `lib/screens/home_screen.dart` |
+| 29 | complete | Validate voice switching persistence and gesture regressions | target files + manual checks |
+
+### Implementation Notes
+- Keep ASR/camera/business logic unchanged.
+- Do not add a dedicated settings page.
+- Selection applies globally via `TtsService` only.
+- If stored voice id is invalid, fallback to default and rewrite storage.
+
+### Acceptance Checks
+1. Downward swipe on home screen shows selector container.
+2. Selecting a voice saves choice and auto-hides selector.
+3. App restart keeps selected voice.
+4. `ChatScreen`, `LiveVisionScreen`, and `ContinuousChatScreen` use selected voice on next playback.
+5. Existing core gestures keep working with no regressions.
+
+### Errors Encountered
+| Error | Attempt | Resolution |
+|---|---:|---|
+| `session-catchup.py` exited with code 49 during voice-pack planning handoff | 1 | Continued from current planning files and approved spec because repository state and planning context were already available |
+| `flutter pub get` failed with socket error fetching `shared_preferences` from `https://pub.dev` | 1 | Blocked by network/package registry reachability; continue code edits and require dependency fetch retry when network is available |

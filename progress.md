@@ -68,3 +68,21 @@
 - Migrated `lib/screens/live_vision_screen.dart` overlays to Frosted baseline with camera-preview readability priority.
 - Validation: `flutter analyze lib/theme/lightwhisper_theme_v2.dart lib/widgets/frosted_primitives.dart lib/screens/home_screen.dart lib/screens/chat_screen.dart lib/screens/continuous_chat_screen.dart lib/screens/live_vision_screen.dart` passed.
 - Tuned home screen clarity by removing full-screen blur overlay and increasing camera capture preset from `ResolutionPreset.low` to `ResolutionPreset.medium` in `lib/screens/home_screen.dart`.
+- Approved and committed voice-pack selector spec:
+  - `docs/superpowers/specs/2026-05-01-voice-pack-selector-design.md` (`ca078c8`)
+- Entered planning-with-files handoff for voice-pack implementation; catchup script exited with code 49.
+- Appended implementation phases (25-29) for the voice-pack selector task in `task_plan.md` and started Phase 25.
+- Completed Phase 25 (voice model/catalog + persistence service scaffold) and started Phase 26 (`TtsService` dynamic speaker wiring).
+- `flutter pub get` failed due to socket error reaching `https://pub.dev` for `shared_preferences`, so static validation is temporarily blocked by dependency fetch.
+- Re-ran `flutter pub get` successfully after network recovery.
+- Implemented voice-pack model and persistence scaffolding:
+  - `lib/models/voice_pack.dart`
+  - `lib/services/voice_settings_service.dart`
+- Updated `lib/services/tts_service.dart` to resolve `speaker` dynamically from saved voice id instead of a hardcoded value.
+- Implemented home-screen full downward-swipe voice selector container in `lib/screens/home_screen.dart`:
+  - downward-swipe trigger
+  - single-choice voice list
+  - selection persistence
+  - auto-hide after selection and idle timeout
+  - gesture conflict guards while selector is visible
+- Validation: `flutter analyze lib/screens/home_screen.dart lib/services/tts_service.dart lib/services/voice_settings_service.dart lib/models/voice_pack.dart` passed.

@@ -43,3 +43,7 @@
 - The approved implementation boundary is presentation-only: no data-flow or business-logic changes.
 - `live_vision_screen.dart` is the primary performance/readability risk area due to camera-preview overlays and blur layering.
 - New spec committed at `docs/superpowers/specs/2026-05-01-ui-polish-frosted-minimal-design.md` (`139e4ba`).
+- Approved voice-pack source is Volcano built-in speakers only (no multi-provider abstraction).
+- Voice switch UX is home-screen full downward swipe -> lightweight selector container -> pick one -> auto-hide.
+- Selected speaker must persist locally and become the global TTS speaker source.
+- Approved default speaker id is `zh_female_vv_uranus_bigtts`.

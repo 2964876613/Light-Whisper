@@ -8,6 +8,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'package:vibration/vibration.dart';
 
 import '../models/capture_source.dart';
+import '../services/voice_settings_service.dart';
 import '../widgets/frosted_primitives.dart';
 import 'chat_screen.dart';
 import 'live_vision_screen.dart';
@@ -63,11 +64,24 @@ class _HomeScreenState extends State<HomeScreen> {
   double _gravityY = 0;
   double _gravityZ = 0;
 
+  bool _showVoiceSelector = false;
+  String _selectedVoiceId = VoiceSettingsService.defaultVoiceId;
+  Timer? _voiceSelectorTimer;
+
   @override
   void initState() {
     super.initState();
     _initializeCamera();
     _startShakeListener();
+    unawaited(_loadVoiceSelection());
+  }
+
+  Future<void> _loadVoiceSelection() async {
+    final id = await VoiceSettingsService.resolveValidVoiceIdOrDefault();
+    if (!mounted) return;
+    setState(() {
+      _selectedVoiceId = id;
+    });
   }
 
   Future<void> _initializeCamera() async {
@@ -167,7 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _handleDoubleTapCapture() async {
-    if (_isCapturing) return;
+    if (_isCapturing || _showVoiceSelector) return;
     _isCapturing = true;
 
     await _vibrate(durationMs: 30);
@@ -330,7 +344,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openLiveVisionMode() async {
-    if (_isCapturing || !mounted) return;
+    if (_isCapturing || _showVoiceSelector || !mounted) return;
     _isCapturing = true;
 
     await _vibrate(durationMs: 60);
@@ -394,9 +408,103 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _resetVoiceSelectorTimer() {
+    _voiceSelectorTimer?.cancel();
+    _voiceSelectorTimer = Timer(const Duration(milliseconds: 2500), () {
+      if (!mounted || !_showVoiceSelector) return;
+      setState(() {
+        _showVoiceSelector = false;
+      });
+    });
+  }
+
+  void _handleVerticalDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (_isCapturing) return;
+    if (velocity <= 350) return;
+    setState(() {
+      _showVoiceSelector = true;
+    });
+    _resetVoiceSelectorTimer();
+  }
+
+  Future<void> _selectVoice(String id) async {
+    final resolved = VoiceSettingsService.resolveValidVoiceIdOrDefaultSync(id);
+    await VoiceSettingsService.setSelectedVoiceId(resolved);
+    if (!mounted) return;
+    setState(() {
+      _selectedVoiceId = resolved;
+      _showVoiceSelector = false;
+    });
+    _voiceSelectorTimer?.cancel();
+  }
+
+  Widget _buildVoiceSelectorCard() {
+    final t = context.lwTheme;
+    if (VoiceSettingsService.catalog.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(t.space24, t.space24, t.space24, t.space32 + 80),
+        child: GlassCard(
+          useMediumSurface: true,
+          padding: EdgeInsets.all(t.space12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '选择语音包',
+                style: TextStyle(
+                  color: t.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(height: t.space8),
+              ...VoiceSettingsService.catalog.map((voice) {
+                final selected = voice.id == _selectedVoiceId;
+                return InkWell(
+                  onTap: () => _selectVoice(voice.id),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: t.space8),
+                    child: Row(
+                      children: [
+                        Icon(
+                          selected ? Icons.radio_button_checked : Icons.radio_button_off,
+                          color: selected ? t.primaryAccent : t.textSecondary,
+                          size: 18,
+                        ),
+                        SizedBox(width: t.space8),
+                        Expanded(
+                          child: Text(
+                            voice.label,
+                            style: TextStyle(
+                              color: selected ? t.primaryAccent : t.textPrimary,
+                              fontSize: 14,
+                              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _accelerometerSubscription?.cancel();
+    _voiceSelectorTimer?.cancel();
     _cameraController?.dispose();
     _cameraController = null;
     _cameraInitFuture = null;
@@ -431,8 +539,9 @@ class _HomeScreenState extends State<HomeScreen> {
               label: '全屏触控层，双击后拍照并进入解析',
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onDoubleTap: _handleDoubleTapCapture,
-                onLongPressStart: (_) => _openLiveVisionMode(),
+                onDoubleTap: _showVoiceSelector ? null : _handleDoubleTapCapture,
+                onLongPressStart: _showVoiceSelector ? null : (_) => _openLiveVisionMode(),
+                onVerticalDragEnd: _handleVerticalDragEnd,
               ),
             ),
             Align(
@@ -441,7 +550,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: EdgeInsets.only(bottom: t.space32 + t.space4),
                 child: Semantics(
                   liveRegion: true,
-                  label: '提示：双击拍一拍，摇动进入图片解析，长按进入实时感知',
+                  label: '提示：双击拍一拍，摇动进入图片解析，长按进入实时感知，下滑可选语音包',
                   child: GlassCard(
                     useMediumSurface: true,
                     padding: EdgeInsets.symmetric(
@@ -461,6 +570,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
+            if (_showVoiceSelector) _buildVoiceSelectorCard(),
           ],
         ),
       ),

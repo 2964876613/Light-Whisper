@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
+import 'voice_settings_service.dart';
+
 class TtsService {
   TtsService._internal();
 
@@ -30,6 +32,8 @@ class TtsService {
               ? dotenv.env['TTS_API_RESOURCE_ID']!.trim()
               : 'seed-tts-2.0';
 
+      final speakerId = await VoiceSettingsService.resolveValidVoiceIdOrDefault();
+
       final response = await _dio.post(
         'https://openspeech.bytedance.com/api/v3/tts/unidirectional',
         options: Options(
@@ -45,7 +49,7 @@ class TtsService {
           'user': {'uid': 'lightwhisper_user'},
           'req_params': {
             'text': content,
-            'speaker': 'zh_female_vv_uranus_bigtts',
+            'speaker': speakerId,
             'audio_params': {
               'format': 'mp3',
               'sample_rate': 24000,
