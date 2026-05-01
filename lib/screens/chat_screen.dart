@@ -140,6 +140,7 @@ class _ChatScreenState extends State<ChatScreen> {
         builder: (_) => ContinuousChatScreen(
           initialAssistantText: _aiResult,
           initialContextHint: _contextHint,
+          imagePath: widget.imagePath,
         ),
       ),
     );

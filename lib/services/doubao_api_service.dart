@@ -67,6 +67,15 @@ class DoubaoApiService {
 要求：客观、简短，不要JSON，不要解释，不要换行。
 不确定时返回：障碍:未明确；风险:中；描述:画面模糊，无法识别''';
 
+  static const String _textFollowupSystemPrompt = '''你是光语连续对话助手。
+请基于已有上下文直接回答用户问题，允许做简短解释和常识性说明。
+不要默认回复“画面模糊，无法判断”。只有当问题必须依赖当前不可用的视觉细节时，才明确说明当前无法重新核对图片细节。''';
+
+  static const String _imageFollowupSystemPrompt = '''你是光语视觉追问助手。
+只回答用户当前追问的那个图片细节，不要重复整张图的障碍/风险总结。
+要求：简短、客观、适合语音播报。
+如果当前追问的那部分确实看不清，就只回答：这部分看不清，无法判断。''';
+
   static const String fallbackMessage = '网络环境不佳，AI暂时无法连线，请依靠导盲杖确保安全。';
   static const String recognitionFallbackMessage = '画面信息不足，暂时无法稳定识别，请调整角度后重试。';
   static const int _maxTtsLength = 120;
@@ -219,6 +228,28 @@ class DoubaoApiService {
     required List<Map<String, String>> history,
     required String latestQuestion,
   }) async {
+    final latest = latestQuestion.trim();
+    if (latest.isEmpty) {
+      return fallbackMessage;
+    }
+
+    final input = _buildTextConversationInput(
+      history: history,
+      latestQuestion: latest,
+      systemPrompt: _textFollowupSystemPrompt,
+    );
+
+    return _sendTextConversationRequest(
+      input: input,
+      errorLabel: '文本对话请求异常',
+    );
+  }
+
+  Future<String> followupWithImage({
+    required File imageFile,
+    required List<Map<String, String>> history,
+    required String latestQuestion,
+  }) async {
     if (_apiKey.isEmpty || _modelId.isEmpty) {
       return fallbackMessage;
     }
@@ -228,12 +259,19 @@ class DoubaoApiService {
       return fallbackMessage;
     }
 
+    if (!await imageFile.exists()) {
+      return '当前没有可用图片，无法重新核对这个细节';
+    }
+
+    File? preparedImage;
     try {
+      preparedImage = await _prepareImageForUpload(imageFile);
+      final imageDataUrl = await _buildBase64ImageDataUrl(preparedImage);
       final input = <Map<String, dynamic>>[
         {
           'role': 'system',
           'content': [
-            {'type': 'input_text', 'text': _safetySystemPrompt},
+            {'type': 'input_text', 'text': _imageFollowupSystemPrompt},
           ],
         },
       ];
@@ -247,11 +285,9 @@ class DoubaoApiService {
         if (role != 'user' && role != 'assistant') {
           continue;
         }
-
         if (role == 'user' && content == latest) {
           continue;
         }
-
         input.add({
           'role': role,
           'content': [
@@ -263,10 +299,90 @@ class DoubaoApiService {
       input.add({
         'role': 'user',
         'content': [
-          {'type': 'input_text', 'text': latest},
+          {'type': 'input_image', 'image_url': imageDataUrl},
+          {
+            'type': 'input_text',
+            'text': '请只根据这张图片回答当前问题：$latest',
+          },
         ],
       });
 
+      return _sendTextConversationRequest(
+        input: input,
+        errorLabel: '图片追问请求异常',
+      );
+    } catch (e) {
+      debugPrint('===== 图片追问请求异常 =====');
+      debugPrint(e.toString());
+      if (e is DioException && e.response != null) {
+        debugPrint('接口详细报错: ${e.response?.data}');
+      }
+      debugPrint('==========================');
+      return fallbackMessage;
+    } finally {
+      if (preparedImage != null &&
+          preparedImage.path != imageFile.path &&
+          await preparedImage.exists()) {
+        try {
+          await preparedImage.delete();
+        } catch (_) {}
+      }
+    }
+  }
+
+  List<Map<String, dynamic>> _buildTextConversationInput({
+    required List<Map<String, String>> history,
+    required String latestQuestion,
+    required String systemPrompt,
+  }) {
+    final input = <Map<String, dynamic>>[
+      {
+        'role': 'system',
+        'content': [
+          {'type': 'input_text', 'text': systemPrompt},
+        ],
+      },
+    ];
+
+    for (final message in _truncateHistory(history)) {
+      final role = message['role']?.trim();
+      final content = message['content']?.trim();
+      if (role == null || content == null || role.isEmpty || content.isEmpty) {
+        continue;
+      }
+      if (role != 'user' && role != 'assistant') {
+        continue;
+      }
+      if (role == 'user' && content == latestQuestion) {
+        continue;
+      }
+      input.add({
+        'role': role,
+        'content': [
+          {'type': 'input_text', 'text': content},
+        ],
+      });
+    }
+
+    input.add({
+      'role': 'user',
+      'content': [
+        {'type': 'input_text', 'text': latestQuestion},
+      ],
+    });
+
+    return input;
+  }
+
+  Future<String> _sendTextConversationRequest({
+    required List<Map<String, dynamic>> input,
+    required String errorLabel,
+  }) async {
+    if (_apiKey.isEmpty || _modelId.isEmpty) {
+      return fallbackMessage;
+    }
+
+    try {
       final payload = {
         'model': _modelId,
         'input': input,
@@ -288,7 +404,7 @@ class DoubaoApiService {
       }
       return parsed;
     } catch (e) {
-      debugPrint('===== 文本对话请求异常 =====');
+      debugPrint('===== $errorLabel =====');
       debugPrint(e.toString());
       if (e is DioException && e.response != null) {
         debugPrint('接口详细报错: ${e.response?.data}');

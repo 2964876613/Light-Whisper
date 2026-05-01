@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,10 +14,12 @@ class ContinuousChatScreen extends StatefulWidget {
     super.key,
     required this.initialAssistantText,
     this.initialContextHint = '',
+    this.imagePath,
   });
 
   final String initialAssistantText;
   final String initialContextHint;
+  final String? imagePath;
 
   @override
   State<ContinuousChatScreen> createState() => _ContinuousChatScreenState();
@@ -140,19 +143,73 @@ class _ContinuousChatScreenState extends State<ContinuousChatScreen> {
     await _sendFollowupQuestion(question);
   }
 
+  bool _shouldUseImageFollowup(String question) {
+    final normalized = question.trim();
+    if (normalized.isEmpty) {
+      return false;
+    }
+
+    const keywords = [
+      '左边',
+      '右边',
+      '前面',
+      '后面',
+      '上面',
+      '下面',
+      '远处',
+      '近处',
+      '写了什么',
+      '数字',
+      '号码',
+      '颜色',
+      '牌子',
+      '招牌',
+      '文字',
+      '哪一个',
+      '那个',
+      '这个细节',
+      '具体一点',
+      '仔细看',
+      '重新看',
+      '看清',
+      '几个人',
+      '几个',
+      '多少个',
+    ];
+
+    return keywords.any(normalized.contains);
+  }
+
+  Future<String> _resolveFollowupReply(String question) async {
+    if (_shouldUseImageFollowup(question)) {
+      final imagePath = widget.imagePath?.trim();
+      if (imagePath == null || imagePath.isEmpty) {
+        return '当前没有可用图片，无法重新核对这个细节';
+      }
+      return _aiService.followupWithImage(
+        imageFile: File(imagePath),
+        history: _chatHistory,
+        latestQuestion: question,
+      );
+    }
+
+    return _aiService.chatWithText(
+      history: _chatHistory,
+      latestQuestion: question,
+    );
+  }
+
   Future<void> _sendFollowupQuestion(String text) async {
     if (_isLoading || text.trim().isEmpty) return;
 
+    final question = text.trim();
     setState(() {
       _isLoading = true;
-      _chatHistory.add({'role': 'user', 'content': text.trim()});
+      _chatHistory.add({'role': 'user', 'content': question});
     });
 
     try {
-      final assistantReply = await _aiService.chatWithText(
-        history: _chatHistory,
-        latestQuestion: text.trim(),
-      );
+      final assistantReply = await _resolveFollowupReply(question);
 
       if (!mounted) return;
       setState(() {

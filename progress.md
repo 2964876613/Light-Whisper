@@ -36,3 +36,18 @@
 - Added home-screen permission dialog with `去设置 / 取消`; denied permission no longer falls through into `ChatScreen`.
 - Ran IDE diagnostics and `flutter analyze lib/screens/home_screen.dart`; fixed one `use_build_context_synchronously` lint by guarding with `mounted` after the dialog await.
 - Final static validation result for `lib/screens/home_screen.dart`: no diagnostics, `flutter analyze` clean for the updated file.
+- Ran simplify review on the permission-flow changes and applied the worthwhile fixes.
+- Narrowed gallery scanning work in `HomeScreen` by checking the combined `onlyAll` album first and only falling back to per-album enumeration when needed.
+- Tightened the gallery-resolution result contract so the success branch no longer carries a redundant null/empty image-path guard.
+- Re-ran IDE diagnostics and `flutter analyze lib/screens/home_screen.dart`; the file remains clean after cleanup.
+- Approved and wrote continuous-chat follow-up routing spec:
+  - `docs/superpowers/specs/2026-04-30-continuous-chat-image-followup-routing-design.md`
+- Confirmed current root cause for false blur replies in continuous chat:
+  - `lib/screens/continuous_chat_screen.dart` uses `DoubaoApiService.chatWithText(...)` only, so later follow-up questions no longer include the original image.
+- Converted the approved continuous-chat routing spec into implementation phases in `task_plan.md`.
+- Recorded findings for image-path propagation, keyword routing, image-aware follow-up, and prompt-splitting requirements.
+- Planning handoff note: `session-catchup.py` again exited with code 49, so planning continued from current files and the approved spec.
+- Passed `imagePath` from `ChatScreen` into `ContinuousChatScreen`.
+- Added keyword-based mixed routing in `ContinuousChatScreen` so ordinary follow-ups stay on text while detail-oriented questions switch to image-aware follow-up.
+- Added `DoubaoApiService.followupWithImage(...)` plus distinct text-followup and visual-followup prompts.
+- Added explicit missing-image degradation response for detail questions when the original image is unavailable.

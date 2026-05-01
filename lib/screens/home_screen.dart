@@ -27,10 +27,19 @@ enum _GalleryAccessStatus {
 }
 
 class _GalleryImageResolution {
-  const _GalleryImageResolution({
+  const _GalleryImageResolution._({
     required this.status,
     this.imagePath,
   });
+
+  const _GalleryImageResolution.success(String imagePath)
+      : this._(
+          status: _GalleryAccessStatus.success,
+          imagePath: imagePath,
+        );
+
+  const _GalleryImageResolution.failure(_GalleryAccessStatus status)
+      : this._(status: status);
 
   final _GalleryAccessStatus status;
   final String? imagePath;
@@ -179,16 +188,31 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<String?> _findFirstReadableImagePath(
+    List<AssetPathEntity> albums,
+  ) async {
+    for (final album in albums) {
+      final assets = await album.getAssetListPaged(page: 0, size: 20);
+      for (final asset in assets) {
+        final file = await asset.file;
+        if (file != null) {
+          return file.path;
+        }
+      }
+    }
+    return null;
+  }
+
   Future<_GalleryImageResolution> _resolveLatestGalleryImage() async {
     final permission = await PhotoManager.requestPermissionExtend();
     if (!permission.hasAccess) {
       final photoStatus = await Permission.photos.status;
       if (photoStatus.isPermanentlyDenied || photoStatus.isRestricted) {
-        return const _GalleryImageResolution(
-          status: _GalleryAccessStatus.permanentlyDenied,
+        return const _GalleryImageResolution.failure(
+          _GalleryAccessStatus.permanentlyDenied,
         );
       }
-      return const _GalleryImageResolution(status: _GalleryAccessStatus.denied);
+      return const _GalleryImageResolution.failure(_GalleryAccessStatus.denied);
     }
 
     final filter = FilterOptionGroup(
@@ -202,30 +226,22 @@ class _HomeScreenState extends State<HomeScreen> {
       onlyAll: true,
       filterOption: filter,
     );
-
-    final candidateAlbums = <AssetPathEntity>[
-      ...allAlbums,
-      ...await PhotoManager.getAssetPathList(
-        type: RequestType.image,
-        onlyAll: false,
-        filterOption: filter,
-      ),
-    ];
-
-    for (final album in candidateAlbums) {
-      final assets = await album.getAssetListPaged(page: 0, size: 20);
-      for (final asset in assets) {
-        final file = await asset.file;
-        if (file != null) {
-          return _GalleryImageResolution(
-            status: _GalleryAccessStatus.success,
-            imagePath: file.path,
-          );
-        }
-      }
+    final allAlbumPath = await _findFirstReadableImagePath(allAlbums);
+    if (allAlbumPath != null) {
+      return _GalleryImageResolution.success(allAlbumPath);
     }
 
-    return const _GalleryImageResolution(status: _GalleryAccessStatus.noImage);
+    final fallbackAlbums = await PhotoManager.getAssetPathList(
+      type: RequestType.image,
+      onlyAll: false,
+      filterOption: filter,
+    );
+    final fallbackPath = await _findFirstReadableImagePath(fallbackAlbums);
+    if (fallbackPath != null) {
+      return _GalleryImageResolution.success(fallbackPath);
+    }
+
+    return const _GalleryImageResolution.failure(_GalleryAccessStatus.noImage);
   }
 
   Future<void> _showGalleryPermissionDialog() async {
@@ -265,18 +281,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
     switch (resolution.status) {
       case _GalleryAccessStatus.success:
-        final latestPath = resolution.imagePath;
-        if (latestPath == null || latestPath.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('未读取到可用图片')),
-          );
-          return;
-        }
         await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => ChatScreen(
               captureSource: CaptureSource.shake,
-              imagePath: latestPath,
+              imagePath: resolution.imagePath!,
             ),
           ),
         );
