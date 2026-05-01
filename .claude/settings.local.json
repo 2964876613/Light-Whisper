@@ -13,7 +13,14 @@
       "Bash(flutter clean *)",
       "Bash(flutter build *)",
       "Bash(npm i *)",
-      "Bash(C:/Users/29648/.claude/skills/brainstorming/scripts/start-server.sh *)"
+      "Bash(C:/Users/29648/.claude/skills/brainstorming/scripts/start-server.sh *)",
+      "Bash(command -v inkscape)",
+      "Bash(command -v magick)",
+      "Bash(command -v rsvg-convert)",
+      "Bash(command -v python)",
+      "Bash(python *)",
+      "Bash(npx playwright *)",
+      "Bash(dart run *)"
     ]
   }
 }

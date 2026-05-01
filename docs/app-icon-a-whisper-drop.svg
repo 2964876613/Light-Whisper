@@ -1,0 +1,40 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="128" y1="96" x2="896" y2="928" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5A3728"/>
+      <stop offset="1" stop-color="#7A513D"/>
+    </linearGradient>
+    <radialGradient id="bgVignette" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(358 310) rotate(38) scale(700)">
+      <stop stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="accent" x1="338" y1="318" x2="694" y2="704" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF0CC"/>
+      <stop offset="1" stop-color="#FFB56A"/>
+    </linearGradient>
+    <filter id="softGlow" x="256" y="256" width="512" height="512" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="16" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect x="96" y="96" width="832" height="832" rx="184" fill="url(#bg)"/>
+  <rect x="96" y="96" width="832" height="832" rx="184" fill="url(#bgVignette)"/>
+
+  <path d="M512 282C652 282 742 390 742 516C742 644 640 750 512 750C490 750 468 747 447 741L350 764L375 677C342 636 324 578 324 516C324 390 414 282 512 282Z"
+        stroke="url(#accent)"
+        stroke-width="48"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        filter="url(#softGlow)"/>
+
+  <path d="M422 500C450 472 488 457 524 459C560 461 598 481 626 512"
+        stroke="url(#accent)"
+        stroke-width="38"
+        stroke-linecap="round"/>
+
+  <circle cx="524" cy="562" r="19" fill="url(#accent)"/>
+</svg>
