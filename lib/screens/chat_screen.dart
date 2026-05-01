@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:vibration/vibration.dart';
 
 import '../models/capture_source.dart';
 import '../providers/user_tier_provider.dart';
@@ -124,10 +125,26 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _vibrate({required int durationMs, int? amplitude}) async {
+    try {
+      await HapticFeedback.heavyImpact();
+    } catch (_) {}
+
+    try {
+      final hasVibrator = await Vibration.hasVibrator();
+      if (!hasVibrator) return;
+      if (amplitude == null) {
+        await Vibration.vibrate(duration: durationMs);
+      } else {
+        await Vibration.vibrate(duration: durationMs, amplitude: amplitude);
+      }
+    } catch (_) {}
+  }
+
   Future<void> _openContinuousChat() async {
     if (_isJumpingToContinuous || _isLoading || !_ttsFinished) return;
 
-    await HapticFeedback.heavyImpact();
+    await _vibrate(durationMs: 60, amplitude: 180);
     await TtsService.instance.stop();
 
     if (!mounted) return;
@@ -146,6 +163,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
 
     if (!mounted) return;
+    await _vibrate(durationMs: 40, amplitude: 120);
     setState(() {
       _isJumpingToContinuous = false;
     });

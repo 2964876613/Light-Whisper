@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:sensors_plus/sensors_plus.dart';
@@ -155,9 +156,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _vibrate({required int durationMs}) async {
-    final hasVibrator = await Vibration.hasVibrator();
-    if (!hasVibrator) return;
-    await Vibration.vibrate(duration: durationMs);
+    try {
+      await HapticFeedback.heavyImpact();
+    } catch (_) {}
+
+    try {
+      final hasVibrator = await Vibration.hasVibrator() ?? false;
+      if (!hasVibrator) return;
+      await Vibration.vibrate(duration: durationMs);
+    } catch (_) {}
   }
 
   Future<void> _handleDoubleTapCapture() async {
@@ -178,14 +185,30 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     _isCapturing = false;
 
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ChatScreen(
-          captureSource: CaptureSource.camera,
-          imagePath: captured?.path,
+    final controller = _cameraController;
+    var paused = false;
+    try {
+      if (controller != null &&
+          controller.value.isInitialized &&
+          !controller.value.isPreviewPaused) {
+        await controller.pausePreview();
+        paused = true;
+      }
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChatScreen(
+            captureSource: CaptureSource.camera,
+            imagePath: captured?.path,
+          ),
         ),
-      ),
-    );
+      );
+    } finally {
+      if (paused && mounted) {
+        try {
+          await controller?.resumePreview();
+        } catch (_) {}
+      }
+    }
   }
 
   Future<String?> _findFirstReadableImagePath(
@@ -309,11 +332,29 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _openLiveVisionMode() async {
     if (_isCapturing || !mounted) return;
 
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const LiveVisionScreen(),
-      ),
-    );
+    await _vibrate(durationMs: 60);
+
+    final controller = _cameraController;
+    var paused = false;
+    try {
+      if (controller != null &&
+          controller.value.isInitialized &&
+          !controller.value.isPreviewPaused) {
+        await controller.pausePreview();
+        paused = true;
+      }
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const LiveVisionScreen(),
+        ),
+      );
+    } finally {
+      if (paused && mounted) {
+        try {
+          await controller?.resumePreview();
+        } catch (_) {}
+      }
+    }
   }
 
   Widget _buildCameraFallback() {
