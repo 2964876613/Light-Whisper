@@ -47,3 +47,10 @@
 - Voice switch UX is home-screen full downward swipe -> lightweight selector container -> pick one -> auto-hide.
 - Selected speaker must persist locally and become the global TTS speaker source.
 - Approved default speaker id is `zh_female_vv_uranus_bigtts`.
+
+## 2026-05-02
+- Approved annotation strategy is Chinese-first layered deep comments (not literal line-by-line comments).
+- Approved implementation scope is limited to `lib/services` and `lib/screens` only.
+- Chosen execution order for readability continuity is services first, then screens.
+- Approved spec path: `docs/superpowers/specs/2026-05-02-code-commenting-design.md` (committed as `4e1affe`).
+- Quality intent is interpretation-oriented comments: explain boundaries, motivations, and side effects while avoiding noisy obvious-line narration.

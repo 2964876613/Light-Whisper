@@ -20,7 +20,8 @@
       "Bash(command -v python)",
       "Bash(python *)",
       "Bash(npx playwright *)",
-      "Bash(dart run *)"
+      "Bash(dart run *)",
+      "Bash(git commit *)"
     ]
   }
 }

@@ -86,3 +86,11 @@
   - auto-hide after selection and idle timeout
   - gesture conflict guards while selector is visible
 - Validation: `flutter analyze lib/screens/home_screen.dart lib/services/tts_service.dart lib/services/voice_settings_service.dart lib/models/voice_pack.dart` passed.
+
+## Session 2026-05-02
+- Approved and committed code-commenting design spec:
+  - `docs/superpowers/specs/2026-05-02-code-commenting-design.md` (`4e1affe`)
+- Entered planning-with-files for implementation planning handoff.
+- Restored planning context from `task_plan.md`, `findings.md`, `progress.md`.
+- Ran session catchup script; it exited with code 49 again, so planning continued from current planning files and approved spec.
+- Enumerated exact in-scope files for this task (`lib/services/*.dart`, `lib/screens/*.dart`) and converted the task into phased execution batches (30-35) with acceptance gates, risk/rollback strategy, and final checklist in `task_plan.md`.

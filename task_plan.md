@@ -191,6 +191,80 @@ Implement the approved spec at `docs/superpowers/specs/2026-05-01-voice-pack-sel
 | 28 | complete | Add selector lifecycle (selection hide + timeout hide + conflict guards) | `lib/screens/home_screen.dart` |
 | 29 | complete | Validate voice switching persistence and gesture regressions | target files + manual checks |
 
+## Follow-on Task — Chinese Layered Deep Comments (`lib/services` + `lib/screens`)
+
+### Goal
+Implement the approved spec at `docs/superpowers/specs/2026-05-02-code-commenting-design.md` by adding Chinese-first layered deep comments in target service and screen files so code walkthrough quality improves without introducing behavior changes.
+
+### Scope
+- Annotate only these files:
+  - `lib/services/tts_manager.dart`
+  - `lib/services/speech_service.dart`
+  - `lib/services/asr_service.dart`
+  - `lib/services/doubao_api_service.dart`
+  - `lib/services/voice_settings_service.dart`
+  - `lib/services/tts_service.dart`
+  - `lib/screens/home_screen.dart`
+  - `lib/screens/continuous_chat_screen.dart`
+  - `lib/screens/chat_screen.dart`
+  - `lib/screens/live_vision_screen.dart`
+- No behavior refactor, no business logic changes.
+
+### Phases
+
+| Phase | Status | Description | Files |
+|---|---|---|---|
+| 30 | pending | Batch A: annotate core AI/service boundary files | `lib/services/doubao_api_service.dart`, `lib/services/tts_service.dart`, `lib/services/speech_service.dart` |
+| 31 | pending | Batch B: annotate support service files | `lib/services/asr_service.dart`, `lib/services/tts_manager.dart`, `lib/services/voice_settings_service.dart` |
+| 32 | pending | Batch C: annotate primary user flow screens | `lib/screens/home_screen.dart`, `lib/screens/chat_screen.dart` |
+| 33 | pending | Batch D: annotate advanced interaction screens | `lib/screens/continuous_chat_screen.dart`, `lib/screens/live_vision_screen.dart` |
+| 34 | pending | Batch validation: analyzer + comment-quality gate sweep | target files |
+| 35 | pending | Final summary with file-by-file annotation points and rollback notes | N/A |
+
+### Batch Acceptance Criteria
+- Batch A passes when:
+  1. File-level responsibility/dependency comments exist in all 3 files.
+  2. All public methods have Chinese comments covering what/why/side effects.
+  3. Async request/response and fallback branches include motivation comments.
+- Batch B passes when:
+  1. Lifecycle/state-transition methods have explicit rationale comments.
+  2. Any retry/probe/synchronization branch has short why-comments.
+  3. No redundant comment noise on obvious one-liners.
+- Batch C passes when:
+  1. Screen-level interaction-path comments exist.
+  2. `build` method has section-level (not widget-by-widget) annotations.
+  3. Event handlers document state change + navigation intent.
+- Batch D passes when:
+  1. Continuous conversation/vision-specific branches explain routing reasons.
+  2. Overlay/stateful interaction blocks document why constraints exist.
+  3. Comments do not contradict current UI/logic behavior.
+- Batch validation passes when:
+  1. `flutter analyze` on target files is clean or unchanged from baseline.
+  2. Diff review confirms comment-only edits (no behavior drift).
+
+### Execution Order
+1. Batch A -> Batch B -> Batch C -> Batch D.
+2. Run per-batch self-check before moving to next batch.
+3. Run batch validation and final summary after all batches.
+
+### Risk & Rollback Strategy
+- Risk: Over-commenting lowers readability.
+  - Mitigation: keep comments at boundary/motivation points; avoid repeating obvious statements.
+- Risk: Comment drift from future code edits.
+  - Mitigation: enforce per-batch quality gate and final contradiction scan.
+- Risk: Accidental behavior edits while annotating.
+  - Mitigation: keep edits minimal and comment-focused; validate diff and analyzer after batches.
+- Rollback:
+  - If any batch introduces non-comment changes by mistake, restore affected file(s) from HEAD and re-apply comment-only edits.
+
+### Final Checklist
+1. All 10 target files have file-level Chinese role comments.
+2. Public APIs/methods in services have what/why/side-effect comments.
+3. Complex async/branch sections have motivation comments.
+4. Screen build methods keep section-level comment granularity.
+5. No TODO/TBD/placeholder comments remain.
+6. No behavior changes in diff; analyzer status acceptable.
+
 ### Implementation Notes
 - Keep ASR/camera/business logic unchanged.
 - Do not add a dedicated settings page.
